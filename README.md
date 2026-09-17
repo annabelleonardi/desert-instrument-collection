@@ -6,7 +6,9 @@ A chill pseudo-3D desert music exploration game inspired by *Journey*. Explore a
 
 ## Play
 
-Open `index.html` in any modern browser, or run a local server:
+**Play in your browser:** [annabelleonardi.github.io/desert-instrument-collection](https://annabelleonardi.github.io/desert-instrument-collection/)
+
+Or run locally:
 
 ```bash
 python3 -m http.server 8734
