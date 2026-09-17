@@ -276,6 +276,30 @@ const A = {
     const lfo2 = c.createOscillator(); lfo2.frequency.value = 0.045;
     const lg2 = c.createGain(); lg2.gain.value = 0.014;
     lfo2.connect(lg2); lg2.connect(g.gain); lfo2.start();
+    this.windGain = g; this.windBP = bp;   // traversal speed feeds the breeze
+  },
+  // k 0..1 — running through the dunes raises the wind
+  setWind(k) {
+    if (!this.ctx || !this.windGain) return;
+    const t = this.ctx.currentTime;
+    this.windGain.gain.setTargetAtTime(0.03 + 0.12 * k, t, 0.5);
+    this.windBP.frequency.setTargetAtTime(430 + 650 * k, t, 0.6);
+  },
+  // the dune's answer to a song: a rising whoosh as the sand gives way
+  slide() {
+    if (!this.ctx || !this.noiseBuf || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime;
+    const s = this.noiseSrc(t, 3);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(320, t);
+    bp.frequency.linearRampToValueAtTime(1500, t + 0.5);
+    bp.frequency.linearRampToValueAtTime(480, t + 2.7);
+    bp.Q.value = 0.7;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.1, t + 0.45);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.7);
+    s.connect(bp); bp.connect(g); this.route(g, 1, 0.2);
   },
   footstep() {
     if (!this.ctx || !this.noiseBuf || this.ctx.state !== 'running') return;
@@ -515,18 +539,25 @@ const INSTRUMENTS = [
 // fixed stereo voice for each layer, so the full mix has width
 const IPANS = [0, -0.12, 0.12, -0.18, 0.18, 0.08, -0.08, 0, 0, 0];
 
-// per-instrument minigame configs — type 0=rhythm taps, 1=steady hold, 2=precision catch
+// three-act arc: act 1 open discovery, act 2 the hidden voices, act 3 the deep sanctuary
+const ACTS = [1, 1, 1, 1, 1, 2, 2, 2, 3, 3];
+const ACT_GATE = { 2: 5, 3: 8 };       // treasures of act n reveal themselves once litCount >= gate
+const GLYPHS = ['\u266A', '\u266B', '\u25CF', '\u25C8', '\u2726', '\u274B', '\u2727', '\u25C9', '\u2B23', '\u2742'];
+
+// per-instrument trial configs — type 1=steady hold (breath), 3=echo-match (listen, then
+// sing the phrase back: each pick is a note index into the instrument's own phrase, so
+// the rhythm you echo is the melody itself)
 const MINIGAMES = [
-  { type: 0, taps: 4, interval: 1.2, window: 0.35, missAllow: 0, hitFrac: 0.85 },   // Lyre
-  { type: 1, hold: 3.0, zone: 0.25, oscSpeed: 0.7, fillRate: 0.9, drainRate: 0.55, timeLimit: 8 },  // Flute
-  { type: 0, taps: 4, interval: 0.6, window: 0.25, missAllow: 0, hitFrac: 0.85 },   // Drum
-  { type: 2, motion: 'bar', catches: 3, window: 0.2, baseSpeed: 1.6, accel: 1.25 }, // Oud
-  { type: 2, motion: 'converge2', catches: 3, window: 0.22, baseSpeed: 1.4, accel: 1.2 }, // Bells
-  { type: 0, taps: 6, interval: 0.5, window: 0.18, missAllow: 1, hitFrac: 0.85 },  // Harp
-  { type: 0, taps: 8, interval: 0.35, window: 0.14, missAllow: 2, hitFrac: 0.85 }, // Shaker
+  { type: 3, pick: [0, 1, 2, 3, 4],      window: 0.30, missAllow: 1 },  // Lyre   — 5 rising notes
+  { type: 1, hold: 3.0, zone: 0.25, oscSpeed: 0.7, fillRate: 0.9, drainRate: 0.55, timeLimit: 8 }, // Flute
+  { type: 3, pick: [0, 1, 2, 4, 6],      window: 0.28, missAllow: 1 },  // Drum   — offbeat pulse
+  { type: 3, pick: [0, 1, 2, 3, 4, 6],   window: 0.28, missAllow: 1 },  // Oud    — 6-note figure
+  { type: 3, pick: [0, 1, 2, 3, 4, 5],   window: 0.28, missAllow: 1 },  // Bells  — steady quarters
+  { type: 3, pick: [0, 2, 4, 6, 12, 14], window: 0.28, missAllow: 2 },  // Harp   — rising arc
+  { type: 3, pick: [0, 2, 4, 6, 8, 10, 12, 14], window: 0.26, missAllow: 2 }, // Shaker — pure pulse
   { type: 1, hold: 2.0, zone: 0.15, oscSpeed: 1.1, fillRate: 0.85, drainRate: 0.7, timeLimit: 6 }, // Horn
-  { type: 0, taps: 2, interval: 1.0, window: 0.12, missAllow: 0, hitFrac: 0.85 },  // Deep Drum
-  { type: 2, motion: 'converge3', catches: 1, window: 0.18, baseSpeed: 1.0, accel: 1.0 }  // Choir
+  { type: 3, pick: [0, 1, 2, 4],         window: 0.30, missAllow: 1 },  // Deep Drum — slow, low
+  { type: 3, pick: [0, 1, 2, 3],         window: 0.32, missAllow: 1 }   // Choir  — long tones
 ];
 
 // =====================================================================
@@ -566,9 +597,22 @@ const treasureSpots = [
   [38, 78], [-100, 128], [102, 140], [-8, 118], [-52, 148]
 ];
 const treasures = INSTRUMENTS.map((inst, i) => ({
-  i, x: treasureSpots[i][0], z: treasureSpots[i][1],
+  i, x: treasureSpots[i][0], z: treasureSpots[i][1], act: ACTS[i],
   found: false, foundT: 0, flyK: 1, arrived: true, ph: rand(TAU)
 }));
+
+// three-act reveal: deeper voices stay hidden until the song has enough light,
+// and even then only wake while sung to — otherwise just a faint glint marks
+// where one sleeps
+function tHidden(t) {
+  return t.act > 1 && litCount < ACT_GATE[t.act];
+}
+function tRevealK(t) {
+  if (t.found || t.act === 1) return 1;
+  if (litCount < ACT_GATE[t.act]) return 0;
+  const dtS = time - p.singT;
+  return clamp(dtS / 2.5, 0, 1) * clamp(1 - (dtS - 6.5) / 2.5, 0, 1);
+}
 
 // ruins: boulders (0), broken pillars (1), arches (2) — they form the alcoves
 const landmarks = [
@@ -589,7 +633,7 @@ const loreStones = [
   { x: -64, z: 95, text: 'The flutists taught the wind. The drummers gave the sand its heartbeat.' },
   { x: 5, z: 128, text: 'When the voices scattered, the canyon fell silent. The songkeeper was the last to leave.' },
   { x: -44, z: 155, text: '...and the first to return. The altar waits for one who can sing them home.' }
-];
+].map((o, i) => ({ ...o, i }));
 
 // =====================================================================
 //  STATE
@@ -608,6 +652,48 @@ const particles = [];
 const waves = [];
 const keys = {};
 let camBack = 9;
+
+// sound-first guidance + the sing verb's traversal reward
+let compassPref = false;             // accessibility toggle (C) — the songs lead by default
+let humBar = -1;                     // bar index of the last scheduled treasure hum
+let slide = null;                    // active sand-slide, or null
+const HUMINT = [0, 2, 3, 5, 7, 10, 12, 14, 15, 17];   // each voice's answer interval
+
+// restoration: every recovered voice physically re-awakens part of the shrine
+// (index = instrument index — collection IS restoration, not tallying)
+const RESTORE = [
+  { kind: 'banners', x: -13, z: 136 },        // 0 Lyre       — sung threads between poles
+  { kind: 'vine',    x: 13,  z: 138 },        // 1 Flute      — a vine of light climbs the pillar
+  { kind: 'stones',  x: -21, z: 146 },        // 2 Frame Drum — the drum stones wake
+  { kind: 'arch',    x: 21,  z: 144 },        // 3 Oud        — the broken arch re-knits
+  { kind: 'chimes',  x: -9,  z: 161 },        // 4 Bells      — chimes take the wind
+  { kind: 'bridge',  x: -23, z: 156 },        // 5 Harp       — a bridge of light spans the crack
+  { kind: 'cascade', x: 18,  z: 158 },        // 6 Shaker     — sand turns to falling gold
+  { kind: 'stair',   x: 14,  z: 166 },        // 7 Horn       — a hidden stair rises
+  { kind: 'seal',    x: 0,   z: 130 },        // 8 Deep Drum  — the floor seal cracks with light
+  { kind: 'halo',    x: 0,   z: 168 }         // 9 Choir      — a halo of standing stones
+].map((r, i) => ({ ...r, i, k: 0, lit: false, ph: rand(TAU) }));
+const chapterLit = [false, false, false, false, false];
+
+// the echo of a former songkeeper: your own past walks beside you (no netcode —
+// a ghost route saved to localStorage, replayed by a translucent figure)
+const GHOST_KEY = 'sandsong_ghost_v1';
+let ghost = null, ghostPath = [], ghostSaveT = 0, ghostAppearT = 25;
+function loadGhost() {
+  try {
+    const d = JSON.parse(localStorage.getItem(GHOST_KEY) || 'null');
+    if (d && d.path && d.path.length > 60)
+      ghost = { path: d.path, idx: 0, walkT: 0, active: false, alpha: 0, x: d.path[0][0], z: d.path[0][1] };
+  } catch (e) { /* storage unavailable — no companion */ }
+}
+function saveGhost() {
+  try {
+    if (ghostPath.length > 60)
+      localStorage.setItem(GHOST_KEY, JSON.stringify({ path: ghostPath.slice(-2400) }));
+  } catch (e) {}
+}
+addEventListener('beforeunload', saveGhost);
+loadGhost();
 
 // ---------------- UI ----------------
 const titleEl = document.getElementById('title');
@@ -693,12 +779,16 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.repeat) return;
   if (e.code === 'Space') {
-    if (mg && mg.phase === 'play') mg.pressQueued = true;
-    else if (mg) { /* ignore presses during intro/win/fail */ }
+    if (mg && (mg.phase === 'play' || mg.phase === 'echo')) mg.pressQueued = true;
+    else if (mg) { /* ignore presses during intro/listen/win/fail */ }
     else sing();
   }
   if (e.code === 'Escape' && mg && mg.phase !== 'win') { mg = null; showToast('the voice slips away\u2026'); }
   if (e.code === 'KeyM') toggleAudio();
+  if (e.code === 'KeyC') {
+    compassPref = !compassPref;
+    showToast(compassPref ? 'the stone guide wakes' : 'you listen to the canyon instead');
+  }
 });
 addEventListener('keyup', e => keys[e.code] = false);
 let dragging = false, dragX = 0;
@@ -730,18 +820,38 @@ function sing() {
     const d = Math.hypot(t.x - p.x, t.z - p.z);
     if (d < bestD) { bestD = d; best = t; }
   }
+  if (best && bestD < 26 && tHidden(best)) {
+    // a voice sleeps deeper than your song reaches — the canyon stays quiet
+    A.tone(midiF(38), { when: 0.25, vol: 0.045, dur: 2.6, wet: 0.9 });
+    waves.push({ x: best.x, z: best.z, r: 0.4, max: 9, faint: true });
+    showToast('something sleeps here, deeper than your song reaches\u2026');
+    return;
+  }
   if (best && bestD < 26) {
     startMinigame(best);
+    return;
+  }
+  // the dune's edge answers a song with a slide
+  if (time - (p.slideT || -9) > 6 &&
+      (Math.abs(p.x) > XMAX - 11 || p.z > ZMAX - 11 || p.z < ZMIN + 11)) {
+    p.slideT = time;
+    const alongX = Math.abs(p.x) > XMAX - 11;
+    const dir = alongX ? (Math.sign(p.vz || (p.z < ALTAR.z ? 1 : -1)))
+                       : (Math.sign(p.vx || 1));
+    slide = { t0: time, dur: 2.4, dx: alongX ? 0 : dir, dz: alongX ? dir : 0 };
+    A.slide();
+    waves.push({ x: p.x, z: p.z, r: 0.5, max: 14 });
+    showToast('the dune carries you!');
     return;
   }
   A.sing(litCount > 0 ? midiF(62) : null);
   // sonar: unfound instruments answer from the ruins
   for (const t of treasures) {
-    if (t.found) continue;
+    if (t.found || tHidden(t)) continue;
     const d = Math.hypot(t.x - p.x, t.z - p.z);
     if (d < 220) {
       const sp = A.panFor(t.x, t.z);
-      A.tone(midiF(62 + [0, 2, 3, 5, 7, 10, 12, 14, 15, 17][t.i]), {
+      A.tone(midiF(62 + HUMINT[t.i]), {
         when: 0.3 + d / 130, vol: 0.014 + 0.1 * sp.gain,
         dur: 2.6, wet: 0.9, pan: sp.pan, sp
       });
@@ -752,26 +862,28 @@ function sing() {
 
 function startMinigame(t) {
   const cfg = MINIGAMES[t.i];
+  const inst = INSTRUMENTS[t.i];
   mg = {
     ti: t.i, type: cfg.type, cfg, t0: time,
-    phase: 'intro', tapIdx: 0, hits: 0, misses: 0,
-    f: 0, inZoneAcc: 0, catchIdx: 0, cyc: 0, speed: cfg.baseSpeed || 1,
-    r1: 1, r2: 1, r3: 1, pos: 0, pressQueued: false, endT: 0,
-    yawTarget: Math.atan2(t.x - p.x, t.z - p.z),
-    _cycOff: 0, _lastTick: 0
+    phase: 'intro', hits: 0, misses: 0,
+    f: 0, inZoneAcc: 0, _lastTick: 0,
+    seq: cfg.type === 3 ? cfg.pick.map(k => inst.phrase[k]) : null,
+    echoIdx: 0, res: null, listenT0: 0, listenDur: 0, echoT0: 0, blooms: [],
+    pressQueued: false, endT: 0,
+    yawTarget: Math.atan2(t.x - p.x, t.z - p.z)
   };
-  const sp = A.panFor(t.x, t.z);
-  A.playPhrase(INSTRUMENTS[t.i], 0.85, 0, sp.pan, sp);
+  if (mg.seq) mg.res = mg.seq.map(() => null);
   waves.push({ x: t.x, z: t.z, r: 0.4, max: 12 });
-  showToast(`${INSTRUMENTS[t.i].name} — answer its call`);
+  showToast(`${inst.name} — answer its call`);
 }
 
+// play one note of a trial: k is either an index into the instrument's phrase
+// (hold trials) or a [midi, off, dur] note taken from the echo sequence
 function playMinigameNote(k) {
   if (!mg) return;
   const inst = INSTRUMENTS[mg.ti];
-  const phrase = inst.phrase;
-  if (k >= phrase.length) k = phrase.length - 1;
-  const [m, off, dur] = phrase[k];
+  const note = Array.isArray(k) ? k : inst.phrase[Math.min(k, inst.phrase.length - 1)];
+  const [m, , dur] = note;
   const sp = A.panFor(treasures[mg.ti].x, treasures[mg.ti].z);
   A.playPhrase({ ...inst, phrase: [[m, 0, dur]] }, 0.7, 0, sp.pan, sp);
 }
@@ -785,7 +897,20 @@ function updateMinigame(dt) {
     // gently turn toward the treasure
     const dy = mg.yawTarget - yaw;
     yaw += dy * 2.0 * dt;
-    if (el > 1.2) mg.phase = 'play';
+    if (el > 1.2) {
+      if (mg.type === 3) {
+        // the instrument sings first — then it is your turn to echo it back
+        mg.phase = 'listen';
+        mg.listenT0 = time;
+        const sp = A.panFor(t.x, t.z);
+        A.playPhrase({ ...INSTRUMENTS[mg.ti], phrase: mg.seq }, 0.95, 0, sp.pan, sp);
+        mg.listenDur = Math.max(...mg.seq.map(n => n[1] + n[2])) * SPB + 0.9;
+      } else mg.phase = 'play';
+    }
+    return;
+  }
+  if (mg.phase === 'listen') {
+    if (time - mg.listenT0 > mg.listenDur) { mg.phase = 'echo'; mg.echoT0 = time + 0.9; }
     return;
   }
   if (mg.phase === 'win' || mg.phase === 'fail') {
@@ -796,37 +921,9 @@ function updateMinigame(dt) {
     return;
   }
 
-  // phase 'play'
-  if (mg.type === 0) updateRhythm(dt, el);
-  else if (mg.type === 1) updateHold(dt, el);
-  else updateCatch(dt, el);
-}
-
-function updateRhythm(dt, el) {
-  const c = mg.cfg;
-  if (mg.tapIdx >= c.taps) {
-    mg.phase = mg.misses <= c.missAllow ? 'win' : 'fail';
-    mg.endT = time + (mg.phase === 'fail' ? 1.3 : 0.4);
-    return;
-  }
-  const tapStart = mg.t0 + 1.2 + mg.tapIdx * c.interval;
-  const tHit = tapStart + c.hitFrac * c.interval;
-  const winStart = tHit - c.window / 2;
-  const winEnd = tHit + c.window / 2;
-  if (mg.pressQueued) {
-    mg.pressQueued = false;
-    if (time >= winStart - 0.15 && time <= winEnd + 0.05) {
-      mg.hits++;
-      playMinigameNote(mg.tapIdx);
-      sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 6);
-      mg.tapIdx++;
-      return;
-    }
-  }
-  if (time > winEnd) {
-    mg.misses++;
-    mg.tapIdx++;
-  }
+  // phase 'play' (hold) / 'echo' (echo-match)
+  if (mg.type === 1) updateHold(dt, time - mg.t0);
+  else updateEcho();
 }
 
 function updateHold(dt, el) {
@@ -844,62 +941,36 @@ function updateHold(dt, el) {
   else if (el > c.timeLimit) { mg.phase = 'fail'; mg.endT = time + 1.3; }
 }
 
-function updateCatch(dt, el) {
+function updateEcho() {
   const c = mg.cfg;
-  const cyc = el - mg._cycOff;
-  if (c.motion === 'bar') {
-    const ph = (cyc * mg.speed) % 2;
-    mg.pos = ph < 1 ? ph : 2 - ph;
-    if (mg.pressQueued) {
-      mg.pressQueued = false;
-      if (Math.abs(mg.pos - 0.5) < c.window) {
-        mg.hits++; playMinigameNote(mg.catchIdx);
-        sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 6);
-      } else mg.misses++;
-      advanceCatch();
-    }
-  } else if (c.motion === 'converge2') {
-    // scripted convergence: rings glide together and meet at cycle end
-    const T = 2.2 / mg.speed;
-    const p = clamp(cyc / T, 0, 1);
-    const pe = p * p * (3 - 2 * p);
-    mg.r1 = 1.0 + (0.45 - 1.0) * pe;
-    mg.r2 = 0.15 + (0.45 - 0.15) * pe;
-    if (mg.pressQueued) {
-      mg.pressQueued = false;
-      if (Math.abs(mg.r1 - mg.r2) < c.window) {
-        mg.hits++; playMinigameNote(mg.catchIdx);
-        sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 6);
-      } else mg.misses++;
-      advanceCatch();
-    } else if (cyc > T + 0.15) { mg.misses++; advanceCatch(); }
-  } else { // converge3
-    const T = 2.2 / mg.speed;
-    const p = clamp(cyc / T, 0, 1);
-    const pe = p * p * (3 - 2 * p);
-    mg.r1 = 1.0 + (0.45 - 1.0) * pe;
-    mg.r2 = 0.55 + (0.45 - 0.55) * pe;
-    mg.r3 = 0.12 + (0.45 - 0.12) * pe;
-    if (mg.pressQueued) {
-      mg.pressQueued = false;
-      const spread = Math.max(mg.r1, mg.r2, mg.r3) - Math.min(mg.r1, mg.r2, mg.r3);
-      if (spread < c.window) {
-        mg.hits++; playMinigameNote(mg.catchIdx);
-        sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 8);
-      } else mg.misses++;
-      advanceCatch();
-    } else if (cyc > T + 0.15) { mg.misses++; advanceCatch(); }
-  }
-  if (mg.catchIdx >= c.catches) {
-    mg.phase = (mg.hits >= Math.ceil(c.catches * 0.66)) ? 'win' : 'fail';
+  const seq = mg.seq;
+  const i = mg.echoIdx;
+  if (i >= seq.length) {
+    mg.phase = mg.misses <= c.missAllow ? 'win' : 'fail';
     mg.endT = time + (mg.phase === 'fail' ? 1.3 : 0.4);
+    return;
   }
-}
-
-function advanceCatch() {
-  mg.catchIdx++;
-  mg.speed *= mg.cfg.accel;
-  mg._cycOff = time - mg.t0;
+  const tHit = mg.echoT0 + seq[i][1] * SPB;
+  const winEnd = tHit + c.window / 2;
+  if (mg.pressQueued) {
+    mg.pressQueued = false;
+    // a press inside the window hits; early presses are simply swallowed so
+    // a nervous extra tap never costs the note
+    if (time >= tHit - c.window / 2 - 0.05 && time <= winEnd + 0.05) {
+      mg.hits++;
+      mg.res[i] = 'hit';
+      playMinigameNote(seq[i]);
+      sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 6);
+      mg.blooms.push({ m: seq[i][0], t: time });
+      mg.echoIdx++;
+    }
+    return;
+  }
+  if (time > winEnd) {         // the note faded unanswered
+    mg.misses++;
+    mg.res[i] = 'miss';
+    mg.echoIdx++;
+  }
 }
 
 function awaken(t) {
@@ -914,15 +985,44 @@ function awaken(t) {
   A.tone(midiF(62) * 2, { when: 0.9, vol: 0.05, dur: 3.5, wet: 0.85 });
   sparkleAt(t.x, groundH(t.x, t.z) + 1, t.z, 26);
   waves.push({ x: t.x, z: t.z, r: 0.6, max: 18 });
+  // the shrine reshapes itself around the recovered voice
+  RESTORE[t.i].lit = true;
+  const ch = Math.floor(t.i / 2);
+  if (!chapterLit[ch] && treasures[2 * ch].found && treasures[2 * ch + 1].found) {
+    chapterLit[ch] = true;
+    A.tone(midiF(62 + HUMINT[t.i]) * 2, { when: 1.2, vol: 0.04, dur: 4, wet: 0.95 });
+    setTimeout(() => showToast('a stone remembers\u2026'), 2800);
+  }
+  // the song deepens: new voices wake as the light grows
+  if (litCount === ACT_GATE[2]) {
+    showBanner('THE CANYON STIRS');
+    showToast('new voices shimmer where your song falls — sing to wake them');
+  }
+  if (litCount === ACT_GATE[3]) {
+    showBanner('THE DEEP SANCTUARY WAKES');
+    showToast('the oldest voices are listening now');
+  }
+  if (litCount === 2) setTimeout(() =>
+    showToast('the compass sleeps now — follow the songs (C recalls it)'), 3200);
   if (litCount === 10) beginVictory();
+}
+
+// every journey names its own song, drawn from the order the voices came home
+const SONG_ADJ = ['Golden', 'Wandering', 'Quiet', 'Dawning', 'Amber', 'Patient', 'Long', 'First'];
+const SONG_NOUN = ['Reunion', 'Circuit', 'Vigil', 'Procession', 'Prayer', 'Caravan', 'Lullaby', 'Rite'];
+function sanctuarySongTitle(order) {
+  const h = order.reduce((a, i) => (a * 31 + i + 1) % 9973, 7);
+  return `${SONG_ADJ[h % SONG_ADJ.length]} ${SONG_NOUN[Math.floor(h / SONG_ADJ.length) % SONG_NOUN.length]}`;
 }
 
 function beginVictory() {
   victoryT0 = time;
   const s = Math.floor(time);
   vstatEl.textContent = `completed in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  document.getElementById('vsong').textContent =
-    'your song: ' + collectOrder.map(i => INSTRUMENTS[i].name).join('  \u2192  ');
+  document.getElementById('vsong').innerHTML =
+    `\u201CThe ${sanctuarySongTitle(collectOrder)}\u201D<br>` +
+    `<span style="letter-spacing:5px;opacity:.95;font-style:normal">${collectOrder.map(i => GLYPHS[i]).join(' ')}</span><br>` +
+    collectOrder.map(i => INSTRUMENTS[i].name).join('  \u2192  ');
   if (A.ctx) A.playFinaleSong(A.ctx.currentTime + 0.8);
   showBanner('THE SANCTUARY SINGS');
   showToast('every voice of the shrine, together as one');
@@ -967,17 +1067,37 @@ function update(dt) {
 
   // --- movement (view-relative), bounded to the canyon ---
   let iF, iR;
-  if (mg) { iF = 0; iR = 0; }
+  if (mg || slide) { iF = 0; iR = 0; }
   else {
     iF = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     iR = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   }
   if (!started) iF = 0.25;
   const len = Math.hypot(iF, iR) || 1;
-  const tvx = (Math.sin(yaw) * iF + Math.cos(yaw) * iR) / len * SPD;
-  const tvz = (Math.cos(yaw) * iF - Math.sin(yaw) * iR) / len * SPD;
-  p.vx = lerp(p.vx, tvx, 1 - Math.pow(0.002, dt));
-  p.vz = lerp(p.vz, tvz, 1 - Math.pow(0.002, dt));
+  const nx = (Math.sin(yaw) * iF + Math.cos(yaw) * iR) / len;
+  const nz = (Math.cos(yaw) * iF - Math.sin(yaw) * iR) / len;
+  // the dunes carry you: a downhill grade quickens the step, an uphill drag
+  // slows it — sampled a stride ahead and smoothed so slopes feel like terrain
+  const slope = (groundH(p.x, p.z) - groundH(p.x + nx * 2.2, p.z + nz * 2.2)) / 2.2;
+  p.slopeK = lerp(p.slopeK || 1, clamp(1 + slope * 3, 0.65, 1.6), 1 - Math.pow(0.05, dt));
+  const spd = SPD * p.slopeK;
+  const tvx = nx * spd;
+  const tvz = nz * spd;
+  // weighted legs: the sand grips on the push, lets you glide on the stop
+  const kMove = (iF || iR) ? 1 - Math.pow(0.006, dt) : 1 - Math.pow(0.15, dt);
+  p.vx = lerp(p.vx, tvx, kMove);
+  p.vz = lerp(p.vz, tvz, kMove);
+  // the song of the edge: a sung slide surfs the dune's flank
+  if (slide) {
+    const k = (time - slide.t0) / slide.dur;
+    if (k >= 1) { slide = null; puff(p.x, p.z, 9); }
+    else {
+      const boost = 1.1 + 1.1 * Math.sin(k * Math.PI);
+      p.vx = lerp(p.vx, slide.dx * SPD * boost, 1 - Math.pow(0.008, dt));
+      p.vz = lerp(p.vz, slide.dz * SPD * boost, 1 - Math.pow(0.008, dt));
+      if (Math.random() < 0.6) puff(p.x, p.z, 1);
+    }
+  }
   p.x = clamp(p.x + p.vx * dt, -XMAX, XMAX);
   p.z = clamp(p.z + p.vz * dt, ZMIN, ZMAX);
   // the altar is solid — push the traveler around its base
@@ -988,8 +1108,19 @@ function update(dt) {
   p.moving = Math.hypot(p.vx, p.vz) > 1.5;
 
   if (started && p.moving) {
-    p.stepAcc += Math.hypot(p.vx, p.vz) * dt;
-    if (p.stepAcc > 2.1) { p.stepAcc = 0; A.footstep(); puff(p.x, p.z, 2); }
+    const spdNow = Math.hypot(p.vx, p.vz);
+    p.stepAcc += spdNow * dt;
+    if (p.stepAcc > (spdNow > 9 ? 1.6 : 2.1)) {
+      p.stepAcc = 0;
+      A.footstep();
+      puff(p.x, p.z, spdNow > 9 ? 3 : 2);
+    }
+  }
+  // the wind answers your speed
+  p.windK = lerp(p.windK || 0, clamp((Math.hypot(p.vx, p.vz) - 3) / 12, 0, 1), 1 - Math.pow(0.1, dt));
+  if (started && A.ctx && A.ctx.state === 'running' && time - (p._windT || 0) > 0.5) {
+    p._windT = time;
+    A.setWind(clamp(p.windK + (slide ? 0.5 : 0), 0, 1));
   }
 
   // --- camera: follows with a HARD screen clamp (player never leaves view) ---
@@ -1002,18 +1133,34 @@ function update(dt) {
   const lift = victoryT0 >= 0 ? Math.min(4, (time - victoryT0) * 0.06) : 0;
   cam.yh = lerp(cam.yh, groundH(cam.x, cam.z) + 4.2 + lift, 1 - Math.pow(0.05, dt));
 
-  // --- the song: synced layers, scheduled on the audio clock (suppressed during finale) ---
+  // --- the song: synced layers, scheduled on the audio clock ---
   if (started && A.ctx && A.ctx.state === 'running') {
     const now = A.ctx.currentTime;
     const finaleActive = victoryT0 >= 0 && (time - victoryT0) < 78;
     if (!finaleActive) {
       const found = treasures.filter(t => t.found);
       if (found.length && loopNext < now - 0.05) loopNext = now + 0.12;
-      const vol = found.length ? 2.2 / Math.sqrt(found.length + 2) : 0;
+      // once the sanctuary sings, the complete track IS the ambient soundtrack
+      const vol = victoryT0 >= 0 ? 0.8 : (found.length ? 2.2 / Math.sqrt(found.length + 2) : 0);
       while (found.length && loopNext < now + 0.9) {
         for (const t of found)
           A.playPhrase(INSTRUMENTS[t.i], vol, loopNext - now, IPANS[t.i]);
         loopNext += LOOPLEN;
+      }
+      // awake voices hum their motif — the songs lead; the compass only recalls
+      const humN = Math.floor(now / LOOPLEN);
+      if (humN !== humBar) {
+        humBar = humN;
+        for (const t of treasures) {
+          if (t.found || tRevealK(t) <= 0) continue;
+          const d = Math.hypot(t.x - p.x, t.z - p.z);
+          if (d > 90) continue;
+          const sp = A.panFor(t.x, t.z);
+          A.tone(midiF(62 + HUMINT[t.i]), {
+            when: 0.05, vol: 0.022 * sp.gain * tRevealK(t) * (1 - d / 90),
+            dur: LOOPLEN * 0.75, wet: 0.85, pan: sp.pan, sp
+          });
+        }
       }
     }
   }
@@ -1033,6 +1180,43 @@ function update(dt) {
     }
   }
 
+  // --- restoration: the shrine physically wakes as voices come home ---
+  for (const r of RESTORE) {
+    if (r.lit && r.k < 1) r.k = Math.min(1, r.k + dt / 5);
+    if (r.lit && Math.random() < 0.05)
+      sparkleAt(r.x + rand(-1.5, 1.5), groundH(r.x, r.z) + rand(0.5, 3), r.z + rand(-1.5, 1.5), 1);
+  }
+
+  // --- the ghost of a former songkeeper walks its old route ---
+  if (started && p.moving && time - (p._pathT || 0) > 0.6) {
+    p._pathT = time;
+    ghostPath.push([+p.x.toFixed(1), +p.z.toFixed(1)]);
+    if (ghostPath.length > 3000) ghostPath.shift();
+  }
+  if (time - ghostSaveT > 30) { ghostSaveT = time; saveGhost(); }
+  if (ghost && started) {
+    const g = ghost;
+    if (!g.active && time > ghostAppearT) {
+      g.active = true; g.idx = 0; g.walkT = 0;
+      A.tone(midiF(74), { vol: 0.03, dur: 3, wet: 0.9 });
+      showToast('a faint figure treads the sand\u2026');
+    }
+    if (g.active) {
+      g.alpha = Math.min(g.alpha + dt / 2, 0.6);
+      g.walkT += dt;
+      g.idx += dt * 1.6;                       // glide along the remembered path
+      const i0 = Math.min(g.path.length - 2, Math.floor(g.idx));
+      const f = clamp(g.idx - i0, 0, 1);
+      g.x = lerp(g.path[i0][0], g.path[i0 + 1][0], f);
+      g.z = lerp(g.path[i0][1], g.path[i0 + 1][1], f);
+      if (g.idx >= g.path.length - 1 || g.walkT > 55) {
+        g.active = false;
+        ghostAppearT = time + rand(75, 140);
+        A.tone(midiF(69), { vol: 0.025, dur: 2.5, wet: 0.9 });
+      }
+    } else g.alpha = Math.max(g.alpha - dt / 2, 0);
+  }
+
   // --- lore proximity: show inscriptions when near a stone ---
   let newLore = -1;
   for (let i = 0; i < loreStones.length; i++) {
@@ -1047,7 +1231,7 @@ function update(dt) {
 
   // --- glowing trails drift from unfound artifacts ---
   if (started) for (const t of treasures) {
-    if (t.found) continue;
+    if (t.found || tRevealK(t) < 0.2) continue;
     const d = Math.hypot(t.x - p.x, t.z - p.z);
     if (d < 210 && Math.random() < 0.22) particles.push({
       kind: 'spark', x: t.x + rand(-0.8, 0.8), y: groundH(t.x, t.z) + rand(0.4, 2.6), z: t.z + rand(-0.8, 0.8),
@@ -1059,6 +1243,10 @@ function update(dt) {
   // --- victory fireworks over the altar (throughout the finale) ---
   if (victoryT0 >= 0 && time - victoryT0 < 80 && Math.random() < 0.3) {
     sparkleAt(ALTAR.x + rand(-14, 14), rand(10, 22), ALTAR.z + rand(-6, 6), 12);
+  }
+  // the living sanctuary breathes golden rings during free wander
+  if (victoryT0 >= 0 && time - victoryT0 > 80 && Math.random() < 0.012) {
+    waves.push({ x: ALTAR.x, z: ALTAR.z, r: 0.6, max: 30 });
   }
   // --- victory overlay appears after the finale song (~76s) ---
   if (victoryT0 >= 0 && time - victoryT0 > 76 && !victoryEl.classList.contains('show')) {
@@ -1375,11 +1563,12 @@ function drawAltar() {
     ctx.restore();
   }
 
-  // crystal at the apex
+  // crystal at the apex — after the finale it burns steady: the sanctuary is alive
+  const awakeK = victoryT0 >= 0 ? 0.3 + 0.12 * Math.sin(time * 1.4) : 0;
   const apexY = 4 * TH + 1.2;
   const ap = project(ALTAR.x, apexY, ALTAR.z);
   if (ap) {
-    const glow = 0.35 + 0.6 * warm + 0.1 * Math.sin(time * 2.2);
+    const glow = 0.35 + 0.6 * warm + 0.1 * Math.sin(time * 2.2) + awakeK;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     const cg = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, 6 * ap.s);
@@ -1389,9 +1578,9 @@ function drawAltar() {
     ctx.fillRect(ap.x - 6 * ap.s, ap.y - 6 * ap.s, 12 * ap.s, 12 * ap.s);
     // the guiding light pillar — visible over the walls from anywhere
     const top = project(ALTAR.x, apexY + 42, ALTAR.z);
-    const bw = 1.3 * ap.s;
+    const bw = (1.3 + 1.1 * awakeK) * ap.s;
     const bg = ctx.createLinearGradient(0, ap.y, 0, top ? top.y : ap.y - 40 * ap.s);
-    bg.addColorStop(0, `rgba(255,214,150,${0.3 + 0.45 * warm})`);
+    bg.addColorStop(0, `rgba(255,214,150,${Math.min(0.95, 0.3 + 0.45 * warm + 0.35 * awakeK)})`);
     bg.addColorStop(1, 'rgba(255,214,150,0)');
     ctx.fillStyle = bg;
     ctx.fillRect(ap.x - bw, (top ? top.y : ap.y - 40 * ap.s), bw * 2, ap.y - (top ? top.y : ap.y - 40 * ap.s));
@@ -1416,16 +1605,40 @@ function drawLoreStone(ls) {
   const fog = clamp(pr.vz / 260, 0, 1);
   const d = Math.hypot(ls.x - p.x, ls.z - p.z);
   const near = clamp(1 - d / 20, 0, 1);
+  const chDone = chapterLit[ls.i];            // both voices of this chapter recovered
   drawShadow(ls.x, ls.z, 0.7);
-  // stone tablet
+  // stone tablet — warms as its chapter is restored
   const w = 1.2 * s, h = 2.0 * s;
-  ctx.fillStyle = fogMix('#2a1a2e', fog);
+  ctx.fillStyle = fogMix(chDone ? '#43293a' : '#2a1a2e', fog);
   ctx.fillRect(px - w * 0.5, py - h, w, h);
-  // inscribed lines (faint golden scratches)
-  ctx.strokeStyle = `rgba(255,200,140,${0.25 * (1 - fog)})`;
+  // chapter-complete rim: a thin golden outline, Journey-mural style
+  if (chDone) {
+    ctx.strokeStyle = `rgba(255,214,150,${(0.5 + 0.2 * Math.sin(time * 2 + ls.i)) * (1 - fog)})`;
+    ctx.lineWidth = Math.max(1, 0.045 * s);
+    ctx.strokeRect(px - w * 0.5, py - h, w, h);
+  }
+  // chapter pictograms — the sanctuary's history, lit voice by voice
+  const drawGlyph = (gl, litG, gx, gy) => {
+    ctx.font = `${Math.max(8, 0.52 * s)}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (litG) {
+      ctx.shadowColor = 'rgba(255,210,130,0.9)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = `rgba(255,217,143,${0.92 * (1 - fog)})`;
+    } else {
+      ctx.fillStyle = `rgba(255,200,140,${0.16 * (1 - fog)})`;
+    }
+    ctx.fillText(gl, gx, gy);
+    ctx.shadowBlur = 0;
+  };
+  drawGlyph(GLYPHS[2 * ls.i], treasures[2 * ls.i] && treasures[2 * ls.i].found, px, py - h * 0.72);
+  drawGlyph(GLYPHS[2 * ls.i + 1], treasures[2 * ls.i + 1] && treasures[2 * ls.i + 1].found, px, py - h * 0.42);
+  // faint resting scratches beneath the story
+  ctx.strokeStyle = `rgba(255,200,140,${0.22 * (1 - fog)})`;
   ctx.lineWidth = Math.max(0.8, 0.025 * s);
-  for (let i = 0; i < 5; i++) {
-    const ly = py - h + (i + 1) * h / 6;
+  for (let i = 0; i < 2; i++) {
+    const ly = py - h + (4 + i) * h / 6;
     ctx.beginPath();
     ctx.moveTo(px - w * 0.35, ly);
     ctx.lineTo(px + w * 0.35, ly);
@@ -1463,11 +1676,23 @@ function drawTreasure(t) {
 
   if (!t.found) drawShadow(x, z, 0.8);
 
+  // not yet awake — only the faintest glint marks the resting place
+  const rk = tRevealK(t);
+  if (rk <= 0) {
+    const gl = (0.10 + 0.09 * Math.sin(time * 2.1 + t.ph)) * (1 - fog);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = `rgba(255,220,175,${gl})`;
+    ctx.beginPath(); ctx.arc(px, py, Math.max(1.2, 1.6 * s), 0, TAU); ctx.fill();
+    ctx.restore();
+    return;
+  }
+
   // vertical light beam
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   const nearK = !t.found ? clamp(1 - Math.hypot(t.x - p.x, t.z - p.z) / 26, 0, 1) : 0;
-  const beamA = t.found ? 0.5 : 0.16 + 0.08 * Math.sin(time * 2.4 + t.ph) + nearK * 0.3;
+  const beamA = (t.found ? 0.5 : 0.16 + 0.08 * Math.sin(time * 2.4 + t.ph) + nearK * 0.3) * rk;
   const bw = 0.55 * s;
   const bg = ctx.createLinearGradient(0, py - 26 * s, 0, py);
   bg.addColorStop(0, 'rgba(255,215,150,0)');
@@ -1479,15 +1704,15 @@ function drawTreasure(t) {
   const R = (0.85 + 0.12 * Math.sin(time * 3 + t.ph) + nearK * 0.2) * s;
   const og = ctx.createRadialGradient(px, py, 0, px, py, R * 2.4);
   const hue = t.found ? '255,222,160' : (nearK > 0.5 ? '255,235,180' : '255,205,150');
-  og.addColorStop(0, `rgba(${hue},0.95)`);
-  og.addColorStop(0.4, `rgba(${hue},0.5)`);
+  og.addColorStop(0, `rgba(${hue},${0.95 * rk})`);
+  og.addColorStop(0.4, `rgba(${hue},${0.5 * rk})`);
   og.addColorStop(1, `rgba(${hue},0)`);
   ctx.fillStyle = og;
   ctx.fillRect(px - R * 2.4, py - R * 2.4, R * 4.8, R * 4.8);
   ctx.restore();
 
   // instrument glyph inside
-  ctx.strokeStyle = `rgba(70,32,48,${0.85 * (1 - fog)})`;
+  ctx.strokeStyle = `rgba(70,32,48,${0.85 * (1 - fog) * rk})`;
   ctx.lineWidth = Math.max(1, 0.06 * s);
   const u = s * 0.028;                        // glyph unit
   ctx.save();
@@ -1558,6 +1783,245 @@ function drawTreasure(t) {
       ctx.closePath(); ctx.stroke();
       ctx.beginPath(); ctx.ellipse(0, 0, 2 * u, 4 * u, 0, 0, TAU); ctx.stroke();
       break;
+  }
+  ctx.restore();
+}
+
+// a shrine feature re-awakened by a recovered voice — collection IS restoration
+// (RESTORE[i]; k animates 0→1 over ~5s after each instrument finds its socket)
+function drawRestoration(r) {
+  const pr = project(r.x, groundH(r.x, r.z), r.z);
+  if (!pr || pr.x < -160 || pr.x > W + 160 || pr.vz > 260) return;
+  const s = pr.s, px = pr.x, py = pr.y;
+  const fog = clamp(pr.vz / 260, 0, 1);
+  const k = r.k * (1 - fog * 0.5);
+  if (k < 0.02) return;
+  const u = s;                                  // 1 world unit in px
+  const tw = Math.sin(time * 1.7 + r.ph);       // shared gentle pulse
+  const glow = (gx, gy, rad, a) => {
+    const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, rad);
+    g.addColorStop(0, `rgba(255,216,150,${a * k})`);
+    g.addColorStop(1, 'rgba(255,216,150,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(gx - rad, gy - rad, rad * 2, rad * 2);
+  };
+  ctx.save();
+  switch (r.kind) {
+    case 'banners': {         // 0 lyre — sung threads strung between two poles
+      const pw = 3.2 * u;
+      ctx.fillStyle = fogMix('#3a2532', fog);
+      ctx.fillRect(px - pw, py - 5 * u, 0.5 * u, 5 * u);
+      ctx.fillRect(px + pw - 0.5 * u, py - 5 * u, 0.5 * u, 5 * u);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let j = 0; j < 4; j++) {
+        const yy = py - (4.4 - j * 0.9) * u;
+        ctx.strokeStyle = `rgba(255,208,140,${(0.4 + 0.2 * tw) * k})`;
+        ctx.lineWidth = Math.max(1, 0.08 * u);
+        ctx.beginPath();
+        for (let i2 = 0; i2 <= 16; i2++) {
+          const q = i2 / 16;
+          const sag = Math.sin(q * Math.PI) * (0.55 + 0.2 * Math.sin(time * 2.2 + j + r.ph)) * u;
+          ctx.lineTo(px - pw + q * pw * 2, yy + sag);
+        }
+        ctx.stroke();
+      }
+      glow(px, py - 4.6 * u, 6 * u, 0.25);
+      break;
+    }
+    case 'vine': {            // 1 flute — a vine of light climbs the pillar
+      ctx.fillStyle = fogMix('#33202c', fog);
+      ctx.fillRect(px - 0.6 * u, py - 9 * u, 1.2 * u, 9 * u);
+      ctx.globalCompositeOperation = 'lighter';
+      const rise = (time * 0.22 + r.ph) % 1;
+      for (let j = 0; j < 7; j++) {
+        const q = (rise + j / 7) % 1;
+        const yy = py - q * 9 * u;
+        const xx = px + Math.sin(q * Math.PI * 6) * 1.1 * u;
+        ctx.fillStyle = `rgba(190,255,205,${(0.5 + 0.3 * Math.sin(time * 3 + j)) * k * (1 - q * 0.3)})`;
+        ctx.beginPath(); ctx.arc(xx, yy, 0.28 * u, 0, TAU); ctx.fill();
+      }
+      glow(px, py - 4.5 * u, 5 * u, 0.2);
+      break;
+    }
+    case 'stones': {          // 2 frame drum — the drum stones wake in a ring
+      ctx.globalCompositeOperation = 'lighter';
+      for (let j = 0; j < 6; j++) {
+        const ang = r.ph + j * TAU / 6;
+        const beat = Math.max(0, Math.sin(time * 2.4 - j * 0.8 + r.ph));
+        ctx.fillStyle = `rgba(255,196,130,${(0.16 + 0.5 * beat * beat) * k})`;
+        ctx.beginPath();
+        ctx.ellipse(px + Math.cos(ang) * 2.6 * u, py + Math.sin(ang) * 1.2 * u,
+          (0.55 + 0.12 * beat) * u, 0.38 * u, 0, 0, TAU);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'arch': {            // 3 oud — the broken arch re-knits with light
+      const halfW = 4.2 * u, hgt = 6.5 * u;
+      ctx.fillStyle = fogMix('#3a2532', fog);
+      ctx.fillRect(px - halfW - 0.5 * u, py - hgt * 0.45, 1.0 * u, hgt * 0.45);
+      ctx.fillRect(px + halfW - 0.5 * u, py - hgt * 0.45, 1.0 * u, hgt * 0.45);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(255,208,140,${0.75 * k})`;
+      ctx.lineWidth = Math.max(1.2, 0.22 * u);
+      ctx.beginPath();
+      const reach = hgt * (0.45 + 0.55 * k);
+      ctx.moveTo(px - halfW, py - hgt * 0.45);
+      ctx.quadraticCurveTo(px - halfW, py - reach, px - halfW * Math.max(0, 1 - k), py - reach);
+      if (k > 0.55) ctx.lineTo(px + halfW * Math.max(0, 1 - k), py - reach);
+      ctx.quadraticCurveTo(px + halfW, py - reach, px + halfW, py - hgt * 0.45);
+      ctx.stroke();
+      glow(px, py - hgt * 0.7, 7 * u, 0.2);
+      break;
+    }
+    case 'chimes': {          // 4 bells — a frame of chimes takes the wind
+      ctx.fillStyle = fogMix('#3a2532', fog);
+      ctx.fillRect(px - 2.8 * u, py - 6.5 * u, 5.6 * u, 0.45 * u);
+      ctx.fillRect(px - 2.8 * u, py - 6.5 * u, 0.4 * u, 6.5 * u);
+      ctx.fillRect(px + 2.4 * u, py - 6.5 * u, 0.4 * u, 6.5 * u);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let j = 0; j < 4; j++) {
+        const cx0 = px + (-1.8 + j * 1.2) * u;
+        const sw = Math.sin(time * 2.1 + j * 1.3 + r.ph) * 0.28 * u;
+        ctx.strokeStyle = `rgba(255,214,150,${0.65 * k})`;
+        ctx.lineWidth = Math.max(0.8, 0.06 * u);
+        ctx.beginPath(); ctx.moveTo(cx0, py - 6.2 * u); ctx.lineTo(cx0 + sw, py - 4.3 * u); ctx.stroke();
+        ctx.fillStyle = `rgba(255,222,165,${(0.4 + 0.3 * tw) * k})`;
+        ctx.fillRect(cx0 + sw - 0.16 * u, py - 4.4 * u, 0.32 * u, 0.8 * u);
+      }
+      break;
+    }
+    case 'bridge': {          // 5 harp — a bridge of light spans the crack
+      ctx.globalCompositeOperation = 'lighter';
+      const bw = 5.5 * u;
+      ctx.strokeStyle = `rgba(255,210,145,${0.65 * k})`;
+      ctx.lineWidth = Math.max(1.4, 0.3 * u);
+      ctx.beginPath();
+      ctx.moveTo(px - bw, py);
+      ctx.quadraticCurveTo(px, py - (1.6 + 0.25 * tw) * u, px + bw, py);
+      ctx.stroke();
+      ctx.lineWidth = Math.max(0.7, 0.05 * u);
+      for (let j = 1; j < 5; j++) {           // harp strings beneath the span
+        const q = j / 5;
+        ctx.strokeStyle = `rgba(255,228,180,${0.3 * k})`;
+        ctx.beginPath();
+        ctx.moveTo(px - bw + 2 * bw * q, py - 0.1 * u);
+        ctx.lineTo(px - bw + 2 * bw * q, py - Math.sin(Math.PI * q) * 1.3 * u);
+        ctx.stroke();
+      }
+      glow(px, py - 1.2 * u, 6 * u, 0.18);
+      break;
+    }
+    case 'cascade': {         // 6 shaker — sand turns to falling gold
+      ctx.globalCompositeOperation = 'lighter';
+      for (let j = 0; j < 14; j++) {
+        const q = (time * 0.3 + j * 0.618 + r.ph) % 1;
+        ctx.fillStyle = `rgba(255,222,160,${(1 - q) * 0.65 * k})`;
+        ctx.beginPath();
+        ctx.arc(px + Math.sin(j * 2.4 + r.ph) * 2.2 * u, py - 7 * u + q * 7 * u, 0.16 * u, 0, TAU);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'stair': {           // 7 horn — a hidden stair rises from the sand
+      for (let j = 0; j < 5; j++) {
+        const sk = clamp(k * 5 - j, 0, 1);  // steps rise one by one
+        if (sk <= 0) continue;
+        const yy = py - j * 0.9 * u;
+        const wd = (3.4 - j * 0.4) * u;
+        ctx.fillStyle = `rgba(120,86,96,${0.85 * sk * (1 - fog)})`;
+        ctx.fillRect(px - wd, yy - 0.28 * u, wd * 2, 0.5 * u);
+        ctx.fillStyle = `rgba(255,208,140,${0.5 * sk})`;
+        ctx.fillRect(px - wd, yy - 0.32 * u, wd * 2, Math.max(0.8, 0.07 * u));
+      }
+      break;
+    }
+    case 'seal': {            // 8 deep drum — the floor seal cracks with light
+      ctx.globalCompositeOperation = 'lighter';
+      for (let j = 0; j < 8; j++) {
+        const ang = r.ph + j * TAU / 8;
+        const len = (2 + 5 * k) * u;
+        ctx.strokeStyle = `rgba(255,190,120,${(0.32 + 0.22 * Math.sin(time * 2 - j)) * k})`;
+        ctx.lineWidth = Math.max(1, 0.16 * u);
+        ctx.beginPath();
+        ctx.moveTo(px, py + 0.6 * u);
+        ctx.lineTo(px + Math.cos(ang) * len, py + 0.6 * u + Math.sin(ang) * len * 0.35);
+        ctx.stroke();
+      }
+      glow(px, py + 0.4 * u, 5.5 * u, 0.25);
+      break;
+    }
+    case 'halo': {            // 9 choir — a halo of standing stones behind the altar
+      for (let j = 0; j < 7; j++) {
+        const ang = Math.PI * (0.12 + 0.76 * j / 6);
+        const dx = Math.cos(ang) * 9 * u;
+        const dz = -Math.abs(Math.sin(ang)) * 4 * u;      // arc rises behind the altar
+        const sh = (1.6 + 1.1 * Math.sin(ang)) * u;
+        const tip = 0.22 + 0.18 * Math.sin(time * 1.8 + j * 1.1 + r.ph);
+        ctx.fillStyle = `rgba(52,32,44,${0.9 * (1 - fog)})`;
+        ctx.fillRect(px + dx - 0.3 * u, py + dz - sh, 0.6 * u, sh);
+        ctx.fillStyle = `rgba(255,216,150,${tip * k})`;
+        ctx.beginPath(); ctx.arc(px + dx, py + dz - sh - 0.25 * u, 0.24 * u, 0, TAU); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      glow(px, py - 3 * u, 10 * u, 0.16);
+      break;
+    }
+  }
+  ctx.restore();
+}
+
+// the echo of a former songkeeper — your own past walk, replayed as a faint
+// figure that appears, wanders the old route beside you, then dissolves
+function drawGhost() {
+  if (!ghost || ghost.alpha <= 0.01) return;
+  const pr = project(ghost.x, groundH(ghost.x, ghost.z), ghost.z);
+  if (!pr || pr.x < -120 || pr.x > W + 120 || pr.vz > 280) return;
+  const s = pr.s, x = pr.x, gy = pr.y;
+  const a = ghost.alpha;
+  const hPx = 1.8 * s;
+  const bob = Math.sin(time * 5.2) * 0.03 * hPx;
+  const topY = gy - hPx + bob;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // cool glow pooling on the sand — no shadow, this one casts only memory
+  let gg = ctx.createRadialGradient(x, gy, 0, x, gy, hPx * 0.8);
+  gg.addColorStop(0, `rgba(150,200,255,${0.1 * a})`);
+  gg.addColorStop(1, 'rgba(150,200,255,0)');
+  ctx.fillStyle = gg;
+  ctx.fillRect(x - hPx * 0.8, gy - hPx * 0.5, hPx * 1.6, hPx * 1.1);
+  // translucent robe — a cool-tinted echo of the songkeeper's silhouette
+  const grd = ctx.createLinearGradient(0, topY, 0, topY + hPx);
+  grd.addColorStop(0, `rgba(190,215,255,${0.32 * a})`);
+  grd.addColorStop(1, `rgba(90,130,200,${0.1 * a})`);
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.moveTo(x, topY + 0.06 * hPx);
+  ctx.bezierCurveTo(x - 0.34 * hPx, topY + hPx * 0.4, x - 0.42 * hPx, topY + hPx * 0.65, x - 0.42 * hPx, topY + hPx);
+  ctx.lineTo(x + 0.42 * hPx, topY + hPx);
+  ctx.bezierCurveTo(x + 0.42 * hPx, topY + hPx * 0.65, x + 0.34 * hPx, topY + hPx * 0.4, x, topY + 0.06 * hPx);
+  ctx.closePath();
+  ctx.fill();
+  // hood
+  ctx.fillStyle = `rgba(205,228,255,${0.26 * a})`;
+  ctx.beginPath(); ctx.ellipse(x, topY + hPx * 0.14, 0.27 * hPx, 0.3 * hPx, 0, 0, TAU); ctx.fill();
+  // scarf wisp trailing behind
+  ctx.strokeStyle = `rgba(170,205,255,${0.3 * a})`;
+  ctx.lineWidth = Math.max(1.2, 0.06 * hPx);
+  ctx.beginPath();
+  ctx.moveTo(x, topY + 0.22 * hPx);
+  for (let i = 1; i <= 8; i++) {
+    const tt = time * 5 - i * 0.55;
+    ctx.lineTo(x + Math.sin(tt) * i * 1.2 + 0.3 * hPx, topY + 0.22 * hPx + i * 0.09 * hPx);
+  }
+  ctx.stroke();
+  // dissolving motes rising off the shoulders
+  for (let j = 0; j < 3; j++) {
+    const q = (time * 0.35 + j * 0.37) % 1;
+    const wx = x + Math.sin(time * 2 + j * 2.4) * 0.35 * hPx;
+    const wy = topY - q * hPx * 0.7;
+    ctx.fillStyle = `rgba(180,215,255,${(1 - q) * 0.22 * a})`;
+    ctx.beginPath(); ctx.arc(wx, wy, (0.1 + q * 0.14) * hPx, 0, TAU); ctx.fill();
   }
   ctx.restore();
 }
@@ -1711,12 +2175,14 @@ function drawDust() {
   ctx.restore();
 }
 
-// small compass: points toward the nearest unfound treasure
+// small compass: points toward the nearest unfound treasure. the songs lead by
+// default now — this stone guide is an accessibility aid, recalled with C
 function drawCompass() {
   if (litCount >= 10) return;
+  if (litCount >= 2 && !compassPref) return;
   let best = null, bestD = 1e9;
   for (const t of treasures) {
-    if (t.found) continue;
+    if (t.found || tHidden(t)) continue;
     const d = Math.hypot(t.x - p.x, t.z - p.z);
     if (d < bestD) { bestD = d; best = t; }
   }
@@ -1740,12 +2206,9 @@ function drawCompass() {
 
 // ---------------- minigame UI — fixed screen-space overlay ----------------
 function mgInstruction() {
-  const c = mg.cfg;
-  if (mg.type === 0) return 'tap SPACE when the ring meets the green band';
   if (mg.type === 1) return 'hold SPACE — keep the fill inside the green zone';
-  return c.motion === 'bar' ? 'press SPACE when the tick crosses the green zone'
-    : c.motion === 'converge2' ? 'press SPACE when the two rings meet'
-    : 'press SPACE when all three rings meet';
+  if (mg.phase === 'listen') return 'listen\u2026';
+  return 'echo it back — tap SPACE as each note crosses the line';
 }
 
 function drawMinigame() {
@@ -1812,10 +2275,9 @@ function drawMinigame() {
     return;
   }
 
-  // phase 'play'
-  if (mg.type === 0) drawRhythmUI(cx, cy, Rmax);
-  else if (mg.type === 1) drawHoldUI(cx, cy, Rmax);
-  else drawCatchUI(cx, cy, Rmax);
+  // active phases: listen / echo / play
+  if (mg.type === 3) drawEchoUI(cx, cy, Rmax);
+  else drawHoldUI(cx, cy, Rmax);
   drawMinigameProgress(cx, cy, Rmax);
 
   ctx.save();
@@ -1829,50 +2291,94 @@ function drawMinigame() {
   ctx.restore();
 }
 
-function drawRhythmUI(cx, cy, Rmax) {
+// echo trial: a horizontal staff — the instrument's notes drift toward the
+// center line. during 'listen' they glow as they sound; during 'echo' you tap
+// SPACE as each note crosses the line (pitch sets its height, duration its size)
+function drawEchoUI(cx, cy, Rmax) {
   const c = mg.cfg;
-  // visual mapping: target band sits at half of Rmax; the ring sweeps in from
-  // 1.35*Rmax and crosses the band exactly at the hit moment (prog === hitFrac)
-  const Rtarget = Rmax * 0.5;
-  const bandW = Math.max(5, (c.window / c.interval) * Rmax);
+  const pps = Rmax * 0.9;                    // px per second of approach
+  const staffY = cy;
+  const halfH = Rmax * 0.58;
+  const seq = mg.seq;
+  const pitchY = m => staffY - clamp((m - 55) * 3.5, -halfH, halfH);
 
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  // green target band — width matches the ring's travel during the hit window
-  ctx.strokeStyle = 'rgba(100,255,140,0.30)';
-  ctx.lineWidth = bandW;
-  ctx.beginPath();
-  ctx.arc(cx, cy, Rtarget, 0, TAU);
-  ctx.stroke();
-  // crisp band edges
-  ctx.strokeStyle = 'rgba(140,255,175,0.85)';
+  // staff baseline + center "now" line
+  ctx.strokeStyle = 'rgba(255,220,160,0.28)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.arc(cx, cy, Rtarget - bandW / 2, 0, TAU);
+  ctx.moveTo(cx - Rmax * 1.9, staffY);
+  ctx.lineTo(cx + Rmax * 1.9, staffY);
   ctx.stroke();
+  const cur = mg.phase === 'echo' && mg.echoIdx < seq.length ? mg.echoIdx : -1;
+  const inWinNow = cur >= 0 &&
+    Math.abs(time - (mg.echoT0 + seq[cur][1] * SPB)) <= c.window / 2;
+  ctx.strokeStyle = inWinNow ? 'rgba(140,255,175,0.95)' : 'rgba(255,235,200,0.55)';
+  ctx.lineWidth = inWinNow ? 4 : 2.5;
   ctx.beginPath();
-  ctx.arc(cx, cy, Rtarget + bandW / 2, 0, TAU);
+  ctx.moveTo(cx, staffY - halfH - 10);
+  ctx.lineTo(cx, staffY + halfH + 10);
   ctx.stroke();
-  // shrinking ring for current tap
-  if (mg.tapIdx < c.taps) {
-    const tapStart = mg.t0 + 1.2 + mg.tapIdx * c.interval;
-    const prog = clamp((time - tapStart) / c.interval, 0, 1);
-    const R = Rmax * (0.5 + (c.hitFrac - prog));
-    const inWin = Math.abs(prog - c.hitFrac) <= c.window / c.interval;
-    ctx.strokeStyle = inWin ? 'rgba(150,255,180,0.95)' : 'rgba(255,220,160,0.8)';
-    ctx.lineWidth = inWin ? 4.5 : 2.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, TAU);
-    ctx.stroke();
+
+  // the notes
+  for (let i = 0; i < seq.length; i++) {
+    const [m, off, dur] = seq[i];
+    let tNote, res = null, sounding = false;
+    if (mg.phase === 'listen') {
+      tNote = mg.listenT0 + off * SPB;
+      sounding = time >= tNote && time <= tNote + dur * SPB;
+    } else {
+      tNote = mg.echoT0 + off * SPB;
+      res = mg.res[i];
+    }
+    const x = cx + (tNote - time) * pps;
+    if (x < cx - Rmax * 1.9 || x > cx + Rmax * 1.9) continue;
+    const y = pitchY(m);
+    const r = 5 + Math.min(4, dur * 1.5);
+    if (res === 'hit') {
+      ctx.fillStyle = 'rgba(255,222,110,0.92)';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    } else if (res === 'miss') {
+      ctx.strokeStyle = 'rgba(255,120,90,0.8)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r);
+      ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r);
+      ctx.stroke();
+    } else {
+      const isNow = i === cur;
+      ctx.fillStyle = sounding || isNow ? 'rgba(255,240,200,0.95)'
+        : mg.phase === 'echo' ? 'rgba(255,225,170,0.85)' : 'rgba(255,225,170,0.45)';
+      ctx.beginPath(); ctx.arc(x, y, r + (sounding ? 2 : 0), 0, TAU); ctx.fill();
+      if (isNow && inWinNow) {
+        ctx.strokeStyle = 'rgba(140,255,175,0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, r + 6, 0, TAU); ctx.stroke();
+      }
+    }
+  }
+
+  // hit blooms at the center line
+  ctx.globalCompositeOperation = 'lighter';
+  mg.blooms = mg.blooms.filter(b => time - b.t < 0.5);
+  for (const b of mg.blooms) {
+    const k = (time - b.t) / 0.5;
+    ctx.strokeStyle = `rgba(255,235,170,${0.8 * (1 - k)})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(cx, pitchY(b.m), 6 + k * 26, 0, TAU); ctx.stroke();
   }
   ctx.restore();
-  // beats remaining in the center
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255,236,205,0.85)';
-  ctx.font = '600 22px Georgia';
-  ctx.fillText(String(Math.max(0, c.taps - mg.tapIdx)), cx, cy + 8);
-  ctx.restore();
+
+  // the breath before your turn
+  if (mg.phase === 'echo' && time < mg.echoT0) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(255,236,205,${0.7 + 0.3 * Math.sin(time * 6)})`;
+    ctx.font = '600 20px Georgia';
+    ctx.fillText('your turn\u2026', cx, staffY - halfH - 26);
+    ctx.restore();
+  }
 }
 
 function drawHoldUI(cx, cy, Rmax) {
@@ -1924,101 +2430,20 @@ function drawHoldUI(cx, cy, Rmax) {
   ctx.restore();
 }
 
-function drawCatchUI(cx, cy, Rmax) {
-  const c = mg.cfg;
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  if (c.motion === 'bar') {
-    const trackW = Rmax * 2.3;
-    const tx = cx - trackW / 2;
-    const ty = cy + Rmax * 0.8;
-    // track
-    ctx.strokeStyle = 'rgba(55,36,50,0.9)';
-    ctx.lineWidth = 11;
-    ctx.beginPath();
-    ctx.moveTo(tx, ty);
-    ctx.lineTo(tx + trackW, ty);
-    ctx.stroke();
-    // green zone
-    const gz = c.window * trackW;
-    ctx.strokeStyle = 'rgba(100,255,140,0.85)';
-    ctx.beginPath();
-    ctx.moveTo(cx - gz / 2, ty);
-    ctx.lineTo(cx + gz / 2, ty);
-    ctx.stroke();
-    // moving tick
-    const tickX = tx + mg.pos * trackW;
-    ctx.fillStyle = 'rgba(255,236,195,0.95)';
-    ctx.beginPath();
-    ctx.arc(tickX, ty, 8, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,235,0.9)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(tickX, ty, 12, 0, TAU);
-    ctx.stroke();
-  } else if (c.motion === 'converge2') {
-    // two closing rings
-    ctx.strokeStyle = 'rgba(255,200,140,0.75)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(cx, cy, Rmax * mg.r1, 0, TAU);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(200,180,255,0.75)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, Rmax * mg.r2, 0, TAU);
-    ctx.stroke();
-    // overlap highlight
-    if (Math.abs(mg.r1 - mg.r2) < c.window) {
-      ctx.strokeStyle = 'rgba(120,255,160,0.95)';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(cx, cy, Rmax * (mg.r1 + mg.r2) / 2, 0, TAU);
-      ctx.stroke();
-    }
-  } else { // converge3
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(255,200,140,0.7)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, Rmax * mg.r1, 0, TAU);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(200,180,255,0.7)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, Rmax * mg.r2, 0, TAU);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(180,255,200,0.7)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, Rmax * mg.r3, 0, TAU);
-    ctx.stroke();
-    const spread = Math.max(mg.r1, mg.r2, mg.r3) - Math.min(mg.r1, mg.r2, mg.r3);
-    if (spread < c.window) {
-      ctx.strokeStyle = 'rgba(120,255,160,0.95)';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(cx, cy, Rmax * (mg.r1 + mg.r2 + mg.r3) / 3, 0, TAU);
-      ctx.stroke();
-    }
-  }
-  ctx.restore();
-}
-
 function drawMinigameProgress(cx, cy, Rmax) {
-  const c = mg.cfg;
-  const count = mg.type === 0 ? c.taps : (mg.type === 2 ? c.catches : 0);
+  const count = mg.type === 3 ? mg.seq.length : 0;
   const dy = cy + Rmax + 34;
   if (count > 0) {
     const dw = 18;
     const sx = cx - (count - 1) * dw / 2;
-    const done = mg.type === 0 ? mg.tapIdx : mg.catchIdx;
     for (let i = 0; i < count; i++) {
-      const lit = i < done;
-      const hit = i < mg.hits;
-      ctx.fillStyle = hit ? 'rgba(255,222,110,0.95)' :
-        (lit ? 'rgba(255,120,80,0.7)' : 'rgba(90,65,80,0.55)');
+      const res = mg.res[i];
+      ctx.fillStyle = res === 'hit' ? 'rgba(255,222,110,0.95)' :
+        (res === 'miss' ? 'rgba(255,120,80,0.7)' : 'rgba(90,65,80,0.55)');
       ctx.beginPath();
       ctx.arc(sx + i * dw, dy, 4.5, 0, TAU);
       ctx.fill();
-      if (hit) {
+      if (res === 'hit') {
         ctx.strokeStyle = 'rgba(255,240,180,0.6)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -2027,13 +2452,14 @@ function drawMinigameProgress(cx, cy, Rmax) {
       }
     }
   }
-  // SPACE key pill
+  // SPACE key pill — lit while an echo or a hold is in progress
   const pw = 78, ph = 24, px = cx - pw / 2, py = cy + Rmax + 50;
+  const active = mg.phase === 'echo' || (mg.type === 1 && mg.phase === 'play');
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,225,180,0.55)';
+  ctx.strokeStyle = active ? 'rgba(255,225,180,0.9)' : 'rgba(255,225,180,0.4)';
   ctx.lineWidth = 1.5;
   ctx.strokeRect(px, py, pw, ph);
-  ctx.fillStyle = mg.type === 1 && keys.Space ? 'rgba(140,255,180,0.9)' : 'rgba(255,235,200,0.85)';
+  ctx.fillStyle = active && keys.Space ? 'rgba(140,255,180,0.9)' : 'rgba(255,235,200,0.85)';
   ctx.font = '600 12px Georgia';
   ctx.textAlign = 'center';
   ctx.fillText('SPACE', cx, py + 16);
@@ -2075,6 +2501,11 @@ function draw() {
     const pr = project(t.x, groundH(t.x, t.z), t.z);
     if (pr && pr.x > -140 && pr.x < W + 140 && pr.vz < 300) items.push({ z: pr.vz, kind: 't', o: t });
   }
+  for (const r of RESTORE) {
+    if (r.k <= 0) continue;
+    const pr = project(r.x, groundH(r.x, r.z), r.z);
+    if (pr && pr.x > -160 && pr.x < W + 160 && pr.vz < 260) items.push({ z: pr.vz, kind: 'restore', o: r });
+  }
   items.sort((a, b) => b.z - a.z);
   for (const it of items) {
     if (it.kind === 'ridge') drawRidge(it.k);
@@ -2082,9 +2513,12 @@ function draw() {
     else if (it.kind === 'lm') drawLandmark(it.o);
     else if (it.kind === 'lore') drawLoreStone(it.o);
     else if (it.kind === 'altar') drawAltar();
+    else if (it.kind === 'restore') drawRestoration(it.o);
     else drawTreasure(it.o);
   }
 
+  // the past walks just behind the present — ghost before the traveler
+  drawGhost();
   // the traveler draws last so nothing can ever swallow them
   drawPlayer();
 
