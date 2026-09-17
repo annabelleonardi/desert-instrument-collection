@@ -42,6 +42,9 @@
   .vin .vstat{font-size:12px;letter-spacing:2px;opacity:.6;margin:0 0 34px}
   .vbtns button{background:rgba(40,18,45,.45);border:1px solid rgba(245,205,150,.5);color:#f0d7a8;font-family:inherit;font-size:13px;letter-spacing:3px;text-transform:uppercase;padding:11px 26px;margin:0 9px;cursor:pointer;border-radius:3px;transition:all .3s}
   .vbtns button:hover{background:rgba(90,40,80,.6);border-color:#ffd98f}
+  #lore{position:absolute;bottom:120px;left:50%;transform:translateX(-50%);max-width:70%;text-align:center;font-size:14px;font-style:italic;letter-spacing:1.5px;opacity:0;visibility:hidden;transition:opacity 2s ease,visibility 0s linear 2s;color:#d8c9a0;text-shadow:0 0 20px rgba(255,190,110,.4);line-height:1.6;pointer-events:none}
+  #lore.show{opacity:.85;visibility:visible;transition:opacity 2s ease,visibility 0s linear 0s}
+  .vin .vsong{font-size:11px;letter-spacing:1px;opacity:.5;margin:0 0 24px;font-style:italic;line-height:1.6}
 </style>
 </head>
 <body>
@@ -57,8 +60,9 @@
     <svg class="onI" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><path d="M16 9.2c1.3 1.2 1.3 4.4 0 5.6"/><path d="M18.6 7c2.4 2.4 2.4 7.6 0 10"/></svg>
     <svg class="offI" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><line x1="16.5" y1="9.5" x2="21" y2="14.5"/><line x1="21" y1="9.5" x2="16.5" y2="14.5"/></svg>
   </button>
-  <div id="hint">wasd / arrows — wander &nbsp;·&nbsp; q e / drag — look &nbsp;·&nbsp; space — sing &nbsp;·&nbsp; follow the glow</div>
+  <div id="hint">wasd / arrows — wander &nbsp;·&nbsp; q e / drag — look &nbsp;·&nbsp; space — sing near a voice to begin its trial &nbsp;·&nbsp; inscribed stones tell the story</div>
   <div id="toast"></div>
+  <div id="lore"></div>
   <div id="banner"></div>
   <div id="title">
     <h1>SANDSONG</h1>
@@ -71,6 +75,7 @@
       <h2>SANCTUARY HARMONY</h2>
       <p class="vsub">all ten voices sing as one</p>
       <p class="vstat" id="vstat"></p>
+      <p class="vsong" id="vsong"></p>
       <div class="vbtns">
         <button id="stayBtn">keep wandering</button>
         <button id="againBtn">begin anew</button>
@@ -436,34 +441,48 @@ const A = {
     this._sp = null;
   },
 
-  // victory burst: a warm chord progression that gathers every voice
-  chordBurst(t0) {
+  // the full finale song, ~76s: intro → 10 sections in collectOrder → burst
+  playFinaleSong(t0) {
     if (!this.ctx) return;
     const rel = at => at - this.ctx.currentTime;
-    const CH = 2.55;   // seconds per chord
+    const SP = 4;   // intro seconds
+
+    // 1) intro swell: drone pad + bell sparkle
+    this.vChoir(midiF(62), rel(t0),        4.2, 0.06, 0);
+    this.vChoir(midiF(65), rel(t0 + 0.6),  4.0, 0.05, 0.1);
+    this.vBell (midiF(74), rel(t0 + 1.2),  3.0, 0.06, 0);
+
+    // 2) chord progression underneath, one chord per 2 sections (2*LOOPLEN)
     const prog = [
-      { root: [50, 57, 62, 65], arp: [74, 77, 81, 86] },   // Dm
-      { root: [46, 53, 58, 62], arp: [70, 74, 77, 82] },   // Bb
-      { root: [41, 48, 53, 57], arp: [69, 72, 77, 81] },   // F
-      { root: [48, 55, 60, 64], arp: [67, 72, 76, 79] },   // C
-      { root: [50, 57, 62, 65, 69, 74], arp: [62, 65, 69, 74, 77, 81, 86, 89] } // Dm add9
+      [50,57,62,65],   // Dm
+      [46,53,58,62],   // Bb
+      [41,48,53,57],   // F
+      [48,55,60,64],   // C
+      [50,57,62,65,69] // Dm add9
     ];
     prog.forEach((ch, ci) => {
-      const at = t0 + ci * CH;
-      ch.root.forEach(m => this.vChoir(midiF(m), rel(at), CH * 0.92, 0.075, 0));
-      this.vDrum(rel(at), 0.22, 0, ci === 4);
-      if (ci >= 2) ch.arp.forEach((m, k) =>
-        this.vBell(midiF(m), rel(at + 0.34 + k * 0.3), 2.2, 0.08, ((k % 2) ? 0.14 : -0.14)));
-      if (ci >= 1) [0, 1, 2, 3].forEach(b =>
-        this.vShaker(rel(at + b * 0.64), 0.045, ((b % 2) ? 0.1 : -0.1)));
-      if (ci === 4) ch.arp.forEach((m, k) =>
-        this.vPluck(midiF(m), rel(at + 0.05 + k * 0.11), 0.9, 0.09, ((k % 2) ? 0.12 : -0.12), 7));
+      const at = t0 + SP + ci * 2 * LOOPLEN;
+      ch.forEach(m => this.vChoir(midiF(m), rel(at), 2 * LOOPLEN * 0.96, 0.055, 0));
+      this.vDrum(rel(at), 0.18, 0, ci === 4);
     });
-    // cascade: every instrument bows once more, in order
-    INSTRUMENTS.forEach((inst, i) => {
-      const w = rel(t0 + 5 * CH + i * 0.55);
-      this.playPhrase(inst, 0.55, w, IPANS[i]);
+
+    // 3) featured instrument per section, in COLLECT ORDER
+    collectOrder.forEach((idx, i) => {
+      const at = t0 + SP + i * LOOPLEN;
+      this.playPhrase(INSTRUMENTS[idx], 1.0, rel(at), IPANS[idx]);
+      this.vBell(midiF(74 + (i % 7)), rel(at + 0.05), 2.2, 0.05, IPANS[idx]);
     });
+
+    // 4) final burst: all ten voices together + big chord + fireworks
+    const fb = t0 + SP + 10 * LOOPLEN;
+    collectOrder.forEach(idx =>
+      this.playPhrase(INSTRUMENTS[idx], 0.7, rel(fb), IPANS[idx]));
+    [50,57,62,65,69,74,77,81].forEach(m =>
+      this.vChoir(midiF(m), rel(fb), 3.2, 0.07, 0));
+    [74,81,86,89].forEach((m, k) =>
+      this.vBell(midiF(m), rel(fb + 0.3 + k * 0.18), 2.6, 0.07, (k % 2 ? 0.14 : -0.14)));
+    this.vDrum(rel(fb), 0.26, 0, true);
+    for (let b = 0; b < 4; b++) this.vShaker(rel(fb + b * 0.5), 0.05, (b % 2 ? 0.12 : -0.12));
   }
 };
 
@@ -495,6 +514,20 @@ const INSTRUMENTS = [
 ];
 // fixed stereo voice for each layer, so the full mix has width
 const IPANS = [0, -0.12, 0.12, -0.18, 0.18, 0.08, -0.08, 0, 0, 0];
+
+// per-instrument minigame configs — type 0=rhythm taps, 1=steady hold, 2=precision catch
+const MINIGAMES = [
+  { type: 0, taps: 4, interval: 1.2, window: 0.35, missAllow: 0, hitFrac: 0.85 },   // Lyre
+  { type: 1, hold: 3.0, zone: 0.25, oscSpeed: 0.7, fillRate: 0.9, drainRate: 0.55, timeLimit: 8 },  // Flute
+  { type: 0, taps: 4, interval: 0.6, window: 0.25, missAllow: 0, hitFrac: 0.85 },   // Drum
+  { type: 2, motion: 'bar', catches: 3, window: 0.2, baseSpeed: 1.6, accel: 1.25 }, // Oud
+  { type: 2, motion: 'converge2', catches: 3, window: 0.22, baseSpeed: 1.4, accel: 1.2 }, // Bells
+  { type: 0, taps: 6, interval: 0.5, window: 0.18, missAllow: 1, hitFrac: 0.85 },  // Harp
+  { type: 0, taps: 8, interval: 0.35, window: 0.14, missAllow: 2, hitFrac: 0.85 }, // Shaker
+  { type: 1, hold: 2.0, zone: 0.15, oscSpeed: 1.1, fillRate: 0.85, drainRate: 0.7, timeLimit: 6 }, // Horn
+  { type: 0, taps: 2, interval: 1.0, window: 0.12, missAllow: 0, hitFrac: 0.85 },  // Deep Drum
+  { type: 2, motion: 'converge3', catches: 1, window: 0.18, baseSpeed: 1.0, accel: 1.0 }  // Choir
+];
 
 // =====================================================================
 //  WORLD — a contained canyon shrine
@@ -549,6 +582,15 @@ const landmarks = [
   [115, 90, 1, 1.6], [70, 55, 0, 1.2]
 ].map(([x, z, kind, s]) => ({ x, z, kind, s }));
 
+// lore stones: inscribed tablets that reveal the sanctuary's story
+const loreStones = [
+  { x: -40, z: 12, text: 'The sanctuary was built where the desert first learned to sing.' },
+  { x: 5, z: 48, text: 'Ten voices were given to the canyon — each a promise of harmony.' },
+  { x: -64, z: 95, text: 'The flutists taught the wind. The drummers gave the sand its heartbeat.' },
+  { x: 5, z: 128, text: 'When the voices scattered, the canyon fell silent. The songkeeper was the last to leave.' },
+  { x: -44, z: 155, text: '...and the first to return. The altar waits for one who can sing them home.' }
+];
+
 // =====================================================================
 //  STATE
 // =====================================================================
@@ -559,6 +601,9 @@ let yaw = 0;
 let started = false, time = 0, litCount = 0;
 let victoryT0 = -1, loopNext = 0;
 let warm = 0;                        // golden tint grows with each find
+const collectOrder = [];             // instrument indices in the order found
+let loreActive = -1;                 // index of currently visible lore fragment
+let mg = null;                       // active minigame runtime state, or null
 const particles = [];
 const waves = [];
 const keys = {};
@@ -567,6 +612,7 @@ let camBack = 9;
 // ---------------- UI ----------------
 const titleEl = document.getElementById('title');
 const hintEl = document.getElementById('hint');
+const loreEl = document.getElementById('lore');
 const bannerEl = document.getElementById('banner');
 const toastEl = document.getElementById('toast');
 const harmonyEl = document.getElementById('harmony');
@@ -646,7 +692,12 @@ addEventListener('keydown', e => {
   if (!started) { start(); return; }
   keys[e.code] = true;
   if (e.repeat) return;
-  if (e.code === 'Space') sing();
+  if (e.code === 'Space') {
+    if (mg && mg.phase === 'play') mg.pressQueued = true;
+    else if (mg) { /* ignore presses during intro/win/fail */ }
+    else sing();
+  }
+  if (e.code === 'Escape' && mg && mg.phase !== 'win') { mg = null; showToast('the voice slips away\u2026'); }
   if (e.code === 'KeyM') toggleAudio();
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -666,9 +717,10 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// ---------------- singing: collect + sonar ----------------
+// ---------------- singing: minigame start + sonar ----------------
 function sing() {
   if (time - p.singT < 0.8) return;
+  if (mg) return;                  // minigame owns Space now
   p.singT = time;
   waves.push({ x: p.x, z: p.z, r: 0.6, max: 22 });
   spawnNotes();
@@ -678,7 +730,10 @@ function sing() {
     const d = Math.hypot(t.x - p.x, t.z - p.z);
     if (d < bestD) { bestD = d; best = t; }
   }
-  if (best && bestD < 26) { awaken(best); return; }
+  if (best && bestD < 26) {
+    startMinigame(best);
+    return;
+  }
   A.sing(litCount > 0 ? midiF(62) : null);
   // sonar: unfound instruments answer from the ruins
   for (const t of treasures) {
@@ -695,9 +750,162 @@ function sing() {
   }
 }
 
+function startMinigame(t) {
+  const cfg = MINIGAMES[t.i];
+  mg = {
+    ti: t.i, type: cfg.type, cfg, t0: time,
+    phase: 'intro', tapIdx: 0, hits: 0, misses: 0,
+    f: 0, inZoneAcc: 0, catchIdx: 0, cyc: 0, speed: cfg.baseSpeed || 1,
+    r1: 1, r2: 1, r3: 1, pos: 0, pressQueued: false, endT: 0,
+    yawTarget: Math.atan2(t.x - p.x, t.z - p.z),
+    _cycOff: 0, _lastTick: 0
+  };
+  const sp = A.panFor(t.x, t.z);
+  A.playPhrase(INSTRUMENTS[t.i], 0.85, 0, sp.pan, sp);
+  waves.push({ x: t.x, z: t.z, r: 0.4, max: 12 });
+  showToast(`${INSTRUMENTS[t.i].name} — answer its call`);
+}
+
+function playMinigameNote(k) {
+  if (!mg) return;
+  const inst = INSTRUMENTS[mg.ti];
+  const phrase = inst.phrase;
+  if (k >= phrase.length) k = phrase.length - 1;
+  const [m, off, dur] = phrase[k];
+  const sp = A.panFor(treasures[mg.ti].x, treasures[mg.ti].z);
+  A.playPhrase({ ...inst, phrase: [[m, 0, dur]] }, 0.7, 0, sp.pan, sp);
+}
+
+function updateMinigame(dt) {
+  if (!mg) return;
+  const t = treasures[mg.ti];
+  const el = time - mg.t0;
+
+  if (mg.phase === 'intro') {
+    // gently turn toward the treasure
+    const dy = mg.yawTarget - yaw;
+    yaw += dy * 2.0 * dt;
+    if (el > 1.2) mg.phase = 'play';
+    return;
+  }
+  if (mg.phase === 'win' || mg.phase === 'fail') {
+    if (time > mg.endT) {
+      if (mg.phase === 'win') awaken(t);
+      mg = null;
+    }
+    return;
+  }
+
+  // phase 'play'
+  if (mg.type === 0) updateRhythm(dt, el);
+  else if (mg.type === 1) updateHold(dt, el);
+  else updateCatch(dt, el);
+}
+
+function updateRhythm(dt, el) {
+  const c = mg.cfg;
+  if (mg.tapIdx >= c.taps) {
+    mg.phase = mg.misses <= c.missAllow ? 'win' : 'fail';
+    mg.endT = time + (mg.phase === 'fail' ? 1.3 : 0.4);
+    return;
+  }
+  const tapStart = mg.t0 + 1.2 + mg.tapIdx * c.interval;
+  const tHit = tapStart + c.hitFrac * c.interval;
+  const winStart = tHit - c.window / 2;
+  const winEnd = tHit + c.window / 2;
+  if (mg.pressQueued) {
+    mg.pressQueued = false;
+    if (time >= winStart - 0.15 && time <= winEnd + 0.05) {
+      mg.hits++;
+      playMinigameNote(mg.tapIdx);
+      sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 6);
+      mg.tapIdx++;
+      return;
+    }
+  }
+  if (time > winEnd) {
+    mg.misses++;
+    mg.tapIdx++;
+  }
+}
+
+function updateHold(dt, el) {
+  const c = mg.cfg;
+  const holding = !!keys.Space;
+  mg.f += (holding ? c.fillRate : -c.drainRate) * dt;
+  mg.f = clamp(mg.f, 0, 1);
+  const center = 0.5 + 0.18 * Math.sin(el * c.oscSpeed);
+  const inZone = Math.abs(mg.f - center) < c.zone;
+  if (inZone) {
+    mg.inZoneAcc += dt;
+    if (time - mg._lastTick > 0.4) { mg._lastTick = time; playMinigameNote(0); }
+  }
+  if (mg.inZoneAcc >= c.hold) { mg.phase = 'win'; mg.endT = time + 0.4; }
+  else if (el > c.timeLimit) { mg.phase = 'fail'; mg.endT = time + 1.3; }
+}
+
+function updateCatch(dt, el) {
+  const c = mg.cfg;
+  const cyc = el - mg._cycOff;
+  if (c.motion === 'bar') {
+    const ph = (cyc * mg.speed) % 2;
+    mg.pos = ph < 1 ? ph : 2 - ph;
+    if (mg.pressQueued) {
+      mg.pressQueued = false;
+      if (Math.abs(mg.pos - 0.5) < c.window) {
+        mg.hits++; playMinigameNote(mg.catchIdx);
+        sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 6);
+      } else mg.misses++;
+      advanceCatch();
+    }
+  } else if (c.motion === 'converge2') {
+    // scripted convergence: rings glide together and meet at cycle end
+    const T = 2.2 / mg.speed;
+    const p = clamp(cyc / T, 0, 1);
+    const pe = p * p * (3 - 2 * p);
+    mg.r1 = 1.0 + (0.45 - 1.0) * pe;
+    mg.r2 = 0.15 + (0.45 - 0.15) * pe;
+    if (mg.pressQueued) {
+      mg.pressQueued = false;
+      if (Math.abs(mg.r1 - mg.r2) < c.window) {
+        mg.hits++; playMinigameNote(mg.catchIdx);
+        sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 6);
+      } else mg.misses++;
+      advanceCatch();
+    } else if (cyc > T + 0.15) { mg.misses++; advanceCatch(); }
+  } else { // converge3
+    const T = 2.2 / mg.speed;
+    const p = clamp(cyc / T, 0, 1);
+    const pe = p * p * (3 - 2 * p);
+    mg.r1 = 1.0 + (0.45 - 1.0) * pe;
+    mg.r2 = 0.55 + (0.45 - 0.55) * pe;
+    mg.r3 = 0.12 + (0.45 - 0.12) * pe;
+    if (mg.pressQueued) {
+      mg.pressQueued = false;
+      const spread = Math.max(mg.r1, mg.r2, mg.r3) - Math.min(mg.r1, mg.r2, mg.r3);
+      if (spread < c.window) {
+        mg.hits++; playMinigameNote(mg.catchIdx);
+        sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 8);
+      } else mg.misses++;
+      advanceCatch();
+    } else if (cyc > T + 0.15) { mg.misses++; advanceCatch(); }
+  }
+  if (mg.catchIdx >= c.catches) {
+    mg.phase = (mg.hits >= Math.ceil(c.catches * 0.66)) ? 'win' : 'fail';
+    mg.endT = time + (mg.phase === 'fail' ? 1.3 : 0.4);
+  }
+}
+
+function advanceCatch() {
+  mg.catchIdx++;
+  mg.speed *= mg.cfg.accel;
+  mg._cycOff = time - mg.t0;
+}
+
 function awaken(t) {
   if (t.found) return;
   t.found = true; t.foundT = time; t.flyK = 0; t.arrived = false;
+  collectOrder.push(t.i);
   litCount++;
   warm = litCount / 10;
   updateHUD();
@@ -713,10 +921,12 @@ function beginVictory() {
   victoryT0 = time;
   const s = Math.floor(time);
   vstatEl.textContent = `completed in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  if (A.ctx) A.chordBurst(A.ctx.currentTime + 0.8);
+  document.getElementById('vsong').textContent =
+    'your song: ' + collectOrder.map(i => INSTRUMENTS[i].name).join('  \u2192  ');
+  if (A.ctx) A.playFinaleSong(A.ctx.currentTime + 0.8);
   showBanner('THE SANCTUARY SINGS');
   showToast('every voice of the shrine, together as one');
-  setTimeout(() => victoryEl.classList.add('show'), 3400);
+  // victory overlay appears after the finale song (~76s) — triggered in update()
 }
 
 // ---------------- particles ----------------
@@ -749,13 +959,19 @@ const dusts = Array.from({ length: 55 }, () => ({ x: rand(-30, 30), y: rand(0.2,
 // =====================================================================
 function update(dt) {
   // --- look ---
-  const turn = (keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0);
-  yaw += turn * 1.5 * dt;
-  yaw = clamp(yaw, -1.05, 1.05);
+  if (!mg) {
+    const turn = (keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0);
+    yaw += turn * 1.5 * dt;
+    yaw = clamp(yaw, -1.05, 1.05);
+  }
 
   // --- movement (view-relative), bounded to the canyon ---
-  let iF = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-  let iR = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  let iF, iR;
+  if (mg) { iF = 0; iR = 0; }
+  else {
+    iF = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+    iR = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  }
   if (!started) iF = 0.25;
   const len = Math.hypot(iF, iR) || 1;
   const tvx = (Math.sin(yaw) * iF + Math.cos(yaw) * iR) / len * SPD;
@@ -786,18 +1002,24 @@ function update(dt) {
   const lift = victoryT0 >= 0 ? Math.min(4, (time - victoryT0) * 0.06) : 0;
   cam.yh = lerp(cam.yh, groundH(cam.x, cam.z) + 4.2 + lift, 1 - Math.pow(0.05, dt));
 
-  // --- the song: synced layers, scheduled on the audio clock ---
+  // --- the song: synced layers, scheduled on the audio clock (suppressed during finale) ---
   if (started && A.ctx && A.ctx.state === 'running') {
     const now = A.ctx.currentTime;
-    const found = treasures.filter(t => t.found);
-    if (found.length && loopNext < now - 0.05) loopNext = now + 0.12;    // (re)sync
-    const vol = found.length ? 2.2 / Math.sqrt(found.length + 2) : 0;
-    while (found.length && loopNext < now + 0.9) {
-      for (const t of found)
-        A.playPhrase(INSTRUMENTS[t.i], vol, loopNext - now, IPANS[t.i]);
-      loopNext += LOOPLEN;
+    const finaleActive = victoryT0 >= 0 && (time - victoryT0) < 78;
+    if (!finaleActive) {
+      const found = treasures.filter(t => t.found);
+      if (found.length && loopNext < now - 0.05) loopNext = now + 0.12;
+      const vol = found.length ? 2.2 / Math.sqrt(found.length + 2) : 0;
+      while (found.length && loopNext < now + 0.9) {
+        for (const t of found)
+          A.playPhrase(INSTRUMENTS[t.i], vol, loopNext - now, IPANS[t.i]);
+        loopNext += LOOPLEN;
+      }
     }
   }
+
+  // --- minigame update ---
+  updateMinigame(dt);
 
   // --- treasure flight to the altar + arrival sparkles ---
   for (const t of treasures) {
@@ -811,6 +1033,18 @@ function update(dt) {
     }
   }
 
+  // --- lore proximity: show inscriptions when near a stone ---
+  let newLore = -1;
+  for (let i = 0; i < loreStones.length; i++) {
+    const ls = loreStones[i];
+    if (Math.hypot(ls.x - p.x, ls.z - p.z) < 18) { newLore = i; break; }
+  }
+  if (newLore !== loreActive) {
+    loreActive = newLore;
+    if (newLore >= 0) { loreEl.textContent = loreStones[newLore].text; loreEl.classList.add('show'); }
+    else loreEl.classList.remove('show');
+  }
+
   // --- glowing trails drift from unfound artifacts ---
   if (started) for (const t of treasures) {
     if (t.found) continue;
@@ -822,9 +1056,13 @@ function update(dt) {
     });
   }
 
-  // --- victory fireworks over the altar ---
-  if (victoryT0 >= 0 && time - victoryT0 < 14 && Math.random() < 0.3) {
+  // --- victory fireworks over the altar (throughout the finale) ---
+  if (victoryT0 >= 0 && time - victoryT0 < 80 && Math.random() < 0.3) {
     sparkleAt(ALTAR.x + rand(-14, 14), rand(10, 22), ALTAR.z + rand(-6, 6), 12);
+  }
+  // --- victory overlay appears after the finale song (~76s) ---
+  if (victoryT0 >= 0 && time - victoryT0 > 76 && !victoryEl.classList.contains('show')) {
+    victoryEl.classList.add('show');
   }
 
   // --- particles ---
@@ -1169,6 +1407,43 @@ function drawAltar() {
   }
 }
 
+// an inscribed stone tablet — pulses when the player is near
+function drawLoreStone(ls) {
+  const gy0 = groundH(ls.x, ls.z);
+  const pr = project(ls.x, gy0, ls.z);
+  if (!pr || pr.x < -160 || pr.x > W + 160) return;
+  const s = pr.s, px = pr.x, py = pr.y;
+  const fog = clamp(pr.vz / 260, 0, 1);
+  const d = Math.hypot(ls.x - p.x, ls.z - p.z);
+  const near = clamp(1 - d / 20, 0, 1);
+  drawShadow(ls.x, ls.z, 0.7);
+  // stone tablet
+  const w = 1.2 * s, h = 2.0 * s;
+  ctx.fillStyle = fogMix('#2a1a2e', fog);
+  ctx.fillRect(px - w * 0.5, py - h, w, h);
+  // inscribed lines (faint golden scratches)
+  ctx.strokeStyle = `rgba(255,200,140,${0.25 * (1 - fog)})`;
+  ctx.lineWidth = Math.max(0.8, 0.025 * s);
+  for (let i = 0; i < 5; i++) {
+    const ly = py - h + (i + 1) * h / 6;
+    ctx.beginPath();
+    ctx.moveTo(px - w * 0.35, ly);
+    ctx.lineTo(px + w * 0.35, ly);
+    ctx.stroke();
+  }
+  // soft glow when player approaches
+  if (near > 0.01) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(px, py - h * 0.5, 0, px, py - h * 0.5, w * 2.5);
+    g.addColorStop(0, `rgba(255,210,150,${0.35 * near})`);
+    g.addColorStop(1, 'rgba(255,210,150,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(px - w * 2.5, py - h * 1.8, w * 5, h * 2.6);
+    ctx.restore();
+  }
+}
+
 // a glowing instrument artifact (or one flying home to the altar)
 function drawTreasure(t) {
   let x = t.x, z = t.z, k = t.found ? t.flyK : 0, arc = 0;
@@ -1191,7 +1466,8 @@ function drawTreasure(t) {
   // vertical light beam
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const beamA = t.found ? 0.5 : 0.16 + 0.08 * Math.sin(time * 2.4 + t.ph);
+  const nearK = !t.found ? clamp(1 - Math.hypot(t.x - p.x, t.z - p.z) / 26, 0, 1) : 0;
+  const beamA = t.found ? 0.5 : 0.16 + 0.08 * Math.sin(time * 2.4 + t.ph) + nearK * 0.3;
   const bw = 0.55 * s;
   const bg = ctx.createLinearGradient(0, py - 26 * s, 0, py);
   bg.addColorStop(0, 'rgba(255,215,150,0)');
@@ -1200,9 +1476,9 @@ function drawTreasure(t) {
   ctx.fillRect(px - bw, py - 26 * s, bw * 2, 26 * s);
 
   // glowing orb
-  const R = (0.85 + 0.12 * Math.sin(time * 3 + t.ph)) * s;
+  const R = (0.85 + 0.12 * Math.sin(time * 3 + t.ph) + nearK * 0.2) * s;
   const og = ctx.createRadialGradient(px, py, 0, px, py, R * 2.4);
-  const hue = t.found ? '255,222,160' : '255,205,150';
+  const hue = t.found ? '255,222,160' : (nearK > 0.5 ? '255,235,180' : '255,205,150');
   og.addColorStop(0, `rgba(${hue},0.95)`);
   og.addColorStop(0.4, `rgba(${hue},0.5)`);
   og.addColorStop(1, `rgba(${hue},0)`);
@@ -1462,6 +1738,308 @@ function drawCompass() {
   ctx.fillText(`${Math.round(bestD)} paces`, cx, cy + 26);
 }
 
+// ---------------- minigame UI — fixed screen-space overlay ----------------
+function mgInstruction() {
+  const c = mg.cfg;
+  if (mg.type === 0) return 'tap SPACE when the ring meets the green band';
+  if (mg.type === 1) return 'hold SPACE — keep the fill inside the green zone';
+  return c.motion === 'bar' ? 'press SPACE when the tick crosses the green zone'
+    : c.motion === 'converge2' ? 'press SPACE when the two rings meet'
+    : 'press SPACE when all three rings meet';
+}
+
+function drawMinigame() {
+  if (!mg) return;
+  const t = treasures[mg.ti];
+  const cx = W * 0.5, cy = H * 0.42;
+  const Rmax = clamp(Math.min(W, H) * 0.15, 64, 120);
+
+  // dark backdrop so the overlay pops against the sand
+  const bg = ctx.createRadialGradient(cx, cy, Rmax * 0.4, cx, cy, Rmax * 3.6);
+  bg.addColorStop(0, 'rgba(22,13,25,0.66)');
+  bg.addColorStop(0.6, 'rgba(22,13,25,0.40)');
+  bg.addColorStop(1, 'rgba(22,13,25,0)');
+  ctx.fillStyle = bg;
+  ctx.fillRect(cx - Rmax * 3.8, cy - Rmax - 150, Rmax * 7.6, Rmax * 2 + 320);
+
+  // glint ring on the treasure itself, ties overlay to the world
+  const pr = project(t.x, groundH(t.x, t.z) + 1.35, t.z);
+  if (pr) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(255,220,160,${0.45 + 0.25 * Math.sin(time * 6)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(pr.x, pr.y, 11 + 2.5 * Math.sin(time * 6), 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (mg.phase === 'intro') {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,236,205,0.96)';
+    ctx.font = '600 24px Georgia';
+    ctx.fillText(INSTRUMENTS[mg.ti].name, cx, cy - Rmax - 62);
+    ctx.fillStyle = `rgba(255,220,160,${0.62 + 0.28 * Math.sin(time * 5)})`;
+    ctx.font = '16px Georgia';
+    ctx.fillText(mgInstruction(), cx, cy - Rmax - 36);
+    ctx.font = '15px Georgia';
+    ctx.fillText('get ready\u2026', cx, cy + Rmax + 52);
+    ctx.restore();
+    return;
+  }
+  if (mg.phase === 'win' || mg.phase === 'fail') {
+    const k = clamp(1 - (mg.endT - time) / 0.4, 0, 1);
+    const col = mg.phase === 'win' ? '180,255,190' : '255,150,120';
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(${col},${0.8 * (1 - k)})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, Rmax * (0.4 + k * 1.2), 0, TAU);
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.font = '600 24px Georgia';
+    ctx.fillStyle = `rgba(${col},${0.95 - 0.35 * k})`;
+    ctx.fillText(mg.phase === 'win' ? '\u266A harmony restored' : 'the voice slips away\u2026', cx, cy + 6);
+    if (mg.phase === 'fail') {
+      ctx.font = '15px Georgia';
+      ctx.fillStyle = `rgba(255,220,160,${0.8 - 0.3 * k})`;
+      ctx.fillText('sing again to try once more', cx, cy + 34);
+    }
+    ctx.restore();
+    return;
+  }
+
+  // phase 'play'
+  if (mg.type === 0) drawRhythmUI(cx, cy, Rmax);
+  else if (mg.type === 1) drawHoldUI(cx, cy, Rmax);
+  else drawCatchUI(cx, cy, Rmax);
+  drawMinigameProgress(cx, cy, Rmax);
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,236,205,0.92)';
+  ctx.font = '600 21px Georgia';
+  ctx.fillText(INSTRUMENTS[mg.ti].name, cx, cy - Rmax - 62);
+  ctx.fillStyle = 'rgba(255,220,160,0.75)';
+  ctx.font = '15px Georgia';
+  ctx.fillText(mgInstruction(), cx, cy - Rmax - 38);
+  ctx.restore();
+}
+
+function drawRhythmUI(cx, cy, Rmax) {
+  const c = mg.cfg;
+  // visual mapping: target band sits at half of Rmax; the ring sweeps in from
+  // 1.35*Rmax and crosses the band exactly at the hit moment (prog === hitFrac)
+  const Rtarget = Rmax * 0.5;
+  const bandW = Math.max(5, (c.window / c.interval) * Rmax);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // green target band — width matches the ring's travel during the hit window
+  ctx.strokeStyle = 'rgba(100,255,140,0.30)';
+  ctx.lineWidth = bandW;
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rtarget, 0, TAU);
+  ctx.stroke();
+  // crisp band edges
+  ctx.strokeStyle = 'rgba(140,255,175,0.85)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rtarget - bandW / 2, 0, TAU);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rtarget + bandW / 2, 0, TAU);
+  ctx.stroke();
+  // shrinking ring for current tap
+  if (mg.tapIdx < c.taps) {
+    const tapStart = mg.t0 + 1.2 + mg.tapIdx * c.interval;
+    const prog = clamp((time - tapStart) / c.interval, 0, 1);
+    const R = Rmax * (0.5 + (c.hitFrac - prog));
+    const inWin = Math.abs(prog - c.hitFrac) <= c.window / c.interval;
+    ctx.strokeStyle = inWin ? 'rgba(150,255,180,0.95)' : 'rgba(255,220,160,0.8)';
+    ctx.lineWidth = inWin ? 4.5 : 2.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, TAU);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // beats remaining in the center
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,236,205,0.85)';
+  ctx.font = '600 22px Georgia';
+  ctx.fillText(String(Math.max(0, c.taps - mg.tapIdx)), cx, cy + 8);
+  ctx.restore();
+}
+
+function drawHoldUI(cx, cy, Rmax) {
+  const c = mg.cfg;
+  const el = time - mg.t0;
+  const center = 0.5 + 0.18 * Math.sin(el * c.oscSpeed);
+  const barH = Rmax * 1.9, barW = 26;
+  const bx = cx + Rmax * 0.95 + 30;
+
+  ctx.save();
+  // bar track
+  ctx.fillStyle = 'rgba(28,16,30,0.78)';
+  ctx.fillRect(bx, cy - barH / 2, barW, barH);
+  // oscillating green zone
+  const zoneY = cy - barH / 2 + (1 - center) * barH;
+  const zoneH = c.zone * 2 * barH;
+  ctx.fillStyle = 'rgba(100,255,140,0.32)';
+  ctx.fillRect(bx + 2, zoneY - zoneH / 2, barW - 4, zoneH);
+  ctx.strokeStyle = 'rgba(140,255,175,0.9)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(bx + 2, zoneY - zoneH / 2, barW - 4, zoneH);
+  // fill level
+  const fillY = cy + barH / 2 - mg.f * barH;
+  const fg = ctx.createLinearGradient(0, fillY, 0, cy + barH / 2);
+  fg.addColorStop(0, 'rgba(255,226,170,0.95)');
+  fg.addColorStop(1, 'rgba(255,170,90,0.5)');
+  ctx.fillStyle = fg;
+  ctx.fillRect(bx + 2, fillY, barW - 4, cy + barH / 2 - fillY);
+  ctx.strokeStyle = 'rgba(255,240,205,0.95)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bx - 5, fillY);
+  ctx.lineTo(bx + barW + 5, fillY);
+  ctx.stroke();
+  // harmony progress
+  const pw = mg.inZoneAcc / c.hold;
+  ctx.strokeStyle = 'rgba(255,235,200,0.45)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx, cy + barH / 2 + 12, barW, 6);
+  ctx.fillStyle = 'rgba(255,255,200,0.9)';
+  ctx.fillRect(bx, cy + barH / 2 + 12, barW * pw, 6);
+  ctx.restore();
+  // % in the center
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,236,205,0.85)';
+  ctx.font = '600 22px Georgia';
+  ctx.fillText(`${Math.round(pw * 100)}%`, cx, cy + 8);
+  ctx.restore();
+}
+
+function drawCatchUI(cx, cy, Rmax) {
+  const c = mg.cfg;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  if (c.motion === 'bar') {
+    const trackW = Rmax * 2.3;
+    const tx = cx - trackW / 2;
+    const ty = cy + Rmax * 0.8;
+    // track
+    ctx.strokeStyle = 'rgba(55,36,50,0.9)';
+    ctx.lineWidth = 11;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx + trackW, ty);
+    ctx.stroke();
+    // green zone
+    const gz = c.window * trackW;
+    ctx.strokeStyle = 'rgba(100,255,140,0.85)';
+    ctx.beginPath();
+    ctx.moveTo(cx - gz / 2, ty);
+    ctx.lineTo(cx + gz / 2, ty);
+    ctx.stroke();
+    // moving tick
+    const tickX = tx + mg.pos * trackW;
+    ctx.fillStyle = 'rgba(255,236,195,0.95)';
+    ctx.beginPath();
+    ctx.arc(tickX, ty, 8, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,235,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(tickX, ty, 12, 0, TAU);
+    ctx.stroke();
+  } else if (c.motion === 'converge2') {
+    // two closing rings
+    ctx.strokeStyle = 'rgba(255,200,140,0.75)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, Rmax * mg.r1, 0, TAU);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,180,255,0.75)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, Rmax * mg.r2, 0, TAU);
+    ctx.stroke();
+    // overlap highlight
+    if (Math.abs(mg.r1 - mg.r2) < c.window) {
+      ctx.strokeStyle = 'rgba(120,255,160,0.95)';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, Rmax * (mg.r1 + mg.r2) / 2, 0, TAU);
+      ctx.stroke();
+    }
+  } else { // converge3
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,200,140,0.7)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, Rmax * mg.r1, 0, TAU);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,180,255,0.7)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, Rmax * mg.r2, 0, TAU);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(180,255,200,0.7)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, Rmax * mg.r3, 0, TAU);
+    ctx.stroke();
+    const spread = Math.max(mg.r1, mg.r2, mg.r3) - Math.min(mg.r1, mg.r2, mg.r3);
+    if (spread < c.window) {
+      ctx.strokeStyle = 'rgba(120,255,160,0.95)';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, Rmax * (mg.r1 + mg.r2 + mg.r3) / 3, 0, TAU);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawMinigameProgress(cx, cy, Rmax) {
+  const c = mg.cfg;
+  const count = mg.type === 0 ? c.taps : (mg.type === 2 ? c.catches : 0);
+  const dy = cy + Rmax + 34;
+  if (count > 0) {
+    const dw = 18;
+    const sx = cx - (count - 1) * dw / 2;
+    const done = mg.type === 0 ? mg.tapIdx : mg.catchIdx;
+    for (let i = 0; i < count; i++) {
+      const lit = i < done;
+      const hit = i < mg.hits;
+      ctx.fillStyle = hit ? 'rgba(255,222,110,0.95)' :
+        (lit ? 'rgba(255,120,80,0.7)' : 'rgba(90,65,80,0.55)');
+      ctx.beginPath();
+      ctx.arc(sx + i * dw, dy, 4.5, 0, TAU);
+      ctx.fill();
+      if (hit) {
+        ctx.strokeStyle = 'rgba(255,240,180,0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(sx + i * dw, dy, 7.5, 0, TAU);
+        ctx.stroke();
+      }
+    }
+  }
+  // SPACE key pill
+  const pw = 78, ph = 24, px = cx - pw / 2, py = cy + Rmax + 50;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,225,180,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(px, py, pw, ph);
+  ctx.fillStyle = mg.type === 1 && keys.Space ? 'rgba(140,255,180,0.9)' : 'rgba(255,235,200,0.85)';
+  ctx.font = '600 12px Georgia';
+  ctx.textAlign = 'center';
+  ctx.fillText('SPACE', cx, py + 16);
+  ctx.restore();
+}
+
 // ---------------- master draw ----------------
 function draw() {
   drawSky();
@@ -1484,6 +2062,10 @@ function draw() {
     const pr = project(lm.x, groundH(lm.x, lm.z), lm.z);
     if (pr && pr.x > -160 && pr.x < W + 160 && pr.vz < 260) items.push({ z: pr.vz, kind: 'lm', o: lm });
   }
+  for (const ls of loreStones) {
+    const pr = project(ls.x, groundH(ls.x, ls.z), ls.z);
+    if (pr && pr.x > -160 && pr.x < W + 160 && pr.vz < 260) items.push({ z: pr.vz, kind: 'lore', o: ls });
+  }
   {
     const pr = project(ALTAR.x, groundH(ALTAR.x, ALTAR.z), ALTAR.z);
     if (pr) items.push({ z: pr.vz, kind: 'altar' });
@@ -1498,6 +2080,7 @@ function draw() {
     if (it.kind === 'ridge') drawRidge(it.k);
     else if (it.kind === 'wall') drawWall(it.o);
     else if (it.kind === 'lm') drawLandmark(it.o);
+    else if (it.kind === 'lore') drawLoreStone(it.o);
     else if (it.kind === 'altar') drawAltar();
     else drawTreasure(it.o);
   }
@@ -1520,6 +2103,9 @@ function draw() {
   ctx.translate((time * 37) % 140 | 0, (time * 61) % 140 | 0);
   ctx.fillRect(-140, -140, W + 280, H + 280);
   ctx.restore();
+
+  // minigame overlay last — above post-processing, always crisp
+  drawMinigame();
 }
 
 // ---------------- main loop ----------------
@@ -1538,7 +2124,9 @@ requestAnimationFrame(frame);
 window.SS = () => ({
   started, got: litCount, px: +p.x.toFixed(1), pz: +p.z.toFixed(1),
   yaw: +yaw.toFixed(2), camx: +cam.x.toFixed(1), camz: +cam.z.toFixed(1),
-  victory: victoryT0, audio: A.ctx ? A.ctx.state : 'none'
+  victory: victoryT0, order: collectOrder, lore: loreActive,
+  mg: mg ? { ti: mg.ti, type: mg.type, phase: mg.phase, hits: mg.hits, misses: mg.misses } : null,
+  audio: A.ctx ? A.ctx.state : 'none'
 });
 window.BOUNDS = { x: XMAX, zl: ZMIN, zh: ZMAX, ax: ALTAR.x, az: ALTAR.z };
 </script>
