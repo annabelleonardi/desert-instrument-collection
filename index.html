@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandsong — the sanctuary remembers its song</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#150b26}
+  #c{display:block;width:100vw;height:100vh}
+  #ui{position:fixed;inset:0;pointer-events:none;color:#f0d7a8;font-family:Georgia,'Palatino Linotype',serif;user-select:none}
+  #harmony{position:absolute;top:24px;left:28px;opacity:0;transition:opacity 1.5s}
+  #harmony.show{opacity:0.92}
+  #harmony .label{font-size:13px;letter-spacing:3px;text-transform:uppercase;opacity:.85;display:block;margin-bottom:8px}
+  #harmony .gem{width:9px;height:9px;border:1px solid rgba(245,205,150,.7);transform:rotate(45deg);display:inline-block;margin:0 4px;transition:all .8s}
+  #harmony .gem.lit{background:#ffd98f;border-color:#ffe7bb;box-shadow:0 0 12px 3px rgba(255,205,120,.75)}
+  #hcount{display:block;margin-top:8px;font-size:11px;letter-spacing:2px;opacity:.75}
+  #secname{display:block;margin-top:4px;font-size:11px;font-style:italic;letter-spacing:1px;opacity:.6;min-height:14px}
+  #audioBtn{position:absolute;top:20px;right:24px;pointer-events:auto;background:rgba(30,15,40,.35);border:1px solid rgba(245,205,150,.4);border-radius:50%;width:42px;height:42px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .3s,border-color .3s}
+  #audioBtn:hover{background:rgba(70,35,70,.5);border-color:rgba(245,205,150,.8)}
+  #audioBtn svg{width:20px;height:20px;stroke:#f0d7a8;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  #audioBtn.on .offI{display:none}
+  #audioBtn:not(.on) .onI{display:none}
+  #hint{position:absolute;bottom:28px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:3px;opacity:0;visibility:hidden;transition:opacity 1.8s ease,visibility 0s linear 1.8s;text-transform:uppercase}
+  #hint.show{opacity:.7;visibility:visible;transition:opacity 1.8s ease,visibility 0s linear 0s}
+  #toast{position:absolute;bottom:74px;left:0;right:0;text-align:center;font-size:15px;font-style:italic;letter-spacing:2px;opacity:0;visibility:hidden;transition:opacity .9s ease,visibility 0s linear .9s;color:#ffe7bb;text-shadow:0 0 18px rgba(255,190,110,.55)}
+  #toast.show{opacity:1;visibility:visible;transition:opacity .9s ease,visibility 0s linear 0s}
+  #banner{position:absolute;top:19%;left:0;right:0;text-align:center;font-size:24px;letter-spacing:7px;opacity:0;visibility:hidden;transition:opacity 2.4s ease,visibility 0s linear 2.4s;color:#ffe7bb;text-shadow:0 0 26px rgba(255,190,110,.6);text-transform:uppercase}
+  #banner.show{opacity:1;visibility:visible;transition:opacity 2.4s ease,visibility 0s linear 0s}
+  #title{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 62%, rgba(20,8,30,0) 26%, rgba(13,5,22,.6) 100%);transition:opacity 1.6s ease,visibility 0s linear 0s;pointer-events:auto;cursor:pointer;visibility:visible}
+  #title.hidden{opacity:0;pointer-events:none;visibility:hidden;transition:opacity 1.6s ease,visibility 0s linear 1.6s}
+  #title h1{font-size:46px;font-weight:400;letter-spacing:20px;text-indent:20px;margin:0 0 10px;color:#ffe7bb;text-shadow:0 0 32px rgba(255,180,100,.55)}
+  #title .sub{font-style:italic;font-size:16px;letter-spacing:5px;opacity:.8;margin:0 0 44px}
+  #title .press{font-size:12px;letter-spacing:4px;text-transform:uppercase;opacity:.6;animation:pulse 2.6s infinite}
+  #title .keys{margin-top:20px;font-size:11px;letter-spacing:2px;opacity:.5;text-transform:uppercase}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:.9}}
+  #victory{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 45%, rgba(20,8,30,.25) 0%, rgba(10,4,18,.78) 100%);opacity:0;visibility:hidden;transition:opacity 2.2s ease,visibility 0s linear 2.2s;pointer-events:none}
+  #victory.show{opacity:1;visibility:visible;pointer-events:auto;transition:opacity 2.2s ease,visibility 0s linear 0s}
+  .vin{text-align:center;padding:0 20px}
+  .vin h2{font-size:34px;font-weight:400;letter-spacing:12px;text-indent:12px;color:#ffe7bb;text-shadow:0 0 30px rgba(255,190,110,.7);margin:0 0 12px}
+  .vin .vsub{font-style:italic;letter-spacing:3px;opacity:.85;margin:0 0 10px}
+  .vin .vstat{font-size:12px;letter-spacing:2px;opacity:.6;margin:0 0 34px}
+  .vbtns button{background:rgba(40,18,45,.45);border:1px solid rgba(245,205,150,.5);color:#f0d7a8;font-family:inherit;font-size:13px;letter-spacing:3px;text-transform:uppercase;padding:11px 26px;margin:0 9px;cursor:pointer;border-radius:3px;transition:all .3s}
+  .vbtns button:hover{background:rgba(90,40,80,.6);border-color:#ffd98f}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="harmony">
+    <span class="label">Treasures Collected</span>
+    <span id="gems"></span>
+    <span id="hcount">0 / 10</span>
+    <span id="secname"></span>
+  </div>
+  <button id="audioBtn" title="sound on/off (M)">
+    <svg class="onI" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><path d="M16 9.2c1.3 1.2 1.3 4.4 0 5.6"/><path d="M18.6 7c2.4 2.4 2.4 7.6 0 10"/></svg>
+    <svg class="offI" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><line x1="16.5" y1="9.5" x2="21" y2="14.5"/><line x1="21" y1="9.5" x2="16.5" y2="14.5"/></svg>
+  </button>
+  <div id="hint">wasd / arrows — wander &nbsp;·&nbsp; q e / drag — look &nbsp;·&nbsp; space — sing &nbsp;·&nbsp; follow the glow</div>
+  <div id="toast"></div>
+  <div id="banner"></div>
+  <div id="title">
+    <h1>SANDSONG</h1>
+    <p class="sub">the sanctuary remembers its song</p>
+    <p class="press">click anywhere to begin</p>
+    <p class="keys">ten voices sleep among the ruins — gather them to the altar</p>
+  </div>
+  <div id="victory">
+    <div class="vin">
+      <h2>SANCTUARY HARMONY</h2>
+      <p class="vsub">all ten voices sing as one</p>
+      <p class="vstat" id="vstat"></p>
+      <div class="vbtns">
+        <button id="stayBtn">keep wandering</button>
+        <button id="againBtn">begin anew</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* =====================================================================
+   SANDSONG — sanctuary of the ten winds.
+   A contained canyon shrine, rendered as a single-file pseudo-3D canvas
+   game. No libraries; all sound is synthesized with the Web Audio API.
+   Gather the ten hidden instruments; each one joins the song forever.
+   ===================================================================== */
+
+// ---------------- helpers ----------------
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
+const midiF = m => 440 * Math.pow(2, (m - 69) / 12);
+function hexRGB(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+function mixColor(h1, h2, t) {
+  const a = hexRGB(h1), b = hexRGB(h2);
+  return `rgb(${(a[0] + (b[0] - a[0]) * t) | 0},${(a[1] + (b[1] - a[1]) * t) | 0},${(a[2] + (b[2] - a[2]) * t) | 0})`;
+}
+const fogMix = (hex, k) => mixColor(hex, '#dba58c', clamp(k, 0, 1));   // fade into canyon haze
+
+// ---------------- canvas ----------------
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, F = 0, HOR = 0, vigGrad = null, grainPat = null;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  F = H * 0.85;           // focal length (px)
+  HOR = H * 0.42;         // horizon line (px)
+  vigGrad = ctx.createRadialGradient(W * 0.5, H * 0.44, H * 0.35, W * 0.5, H * 0.5, H * 0.95);
+  vigGrad.addColorStop(0, 'rgba(10,4,18,0)');
+  vigGrad.addColorStop(1, 'rgba(10,4,18,0.55)');
+}
+resize();
+addEventListener('resize', resize);
+
+// film grain tile
+const grain = document.createElement('canvas');
+grain.width = grain.height = 140;
+(() => {
+  const g = grain.getContext('2d');
+  const id = g.createImageData(140, 140);
+  for (let i = 0; i < id.data.length; i += 4) {
+    const v = Math.random() * 255 | 0;
+    id.data[i] = id.data[i + 1] = id.data[i + 2] = v;
+    id.data[i + 3] = 13;
+  }
+  g.putImageData(id, 0, 0);
+})();
+
+// stars (screen space with yaw parallax)
+const stars = Array.from({ length: 90 }, () => ({
+  x: Math.random(), y: Math.random(), s: rand(0.6, 1.7),
+  tw: rand(0.5, 2), ph: rand(TAU), a: rand(0.25, 0.8)
+}));
+
+// =====================================================================
+//  AUDIO ENGINE — everything synthesized, no files
+// =====================================================================
+const SPB = 60 / 72;                 // seconds per beat (72 BPM)
+const LOOPLEN = 8 * SPB;             // one bar of song = 8 beats; layers lock to it
+
+const A = {
+  ctx: null, master: null, rev: null, noiseBuf: null, _sp: null,
+  init() {
+    if (this.ctx) return;
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return;
+    const c = this.ctx = new C();
+    this.master = c.createGain();
+    this.master.gain.value = 0.9;
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -20; comp.knee.value = 25; comp.ratio.value = 4;
+    this.master.connect(comp); comp.connect(c.destination);
+    // reverb from a generated impulse response
+    this.rev = c.createConvolver();
+    this.rev.buffer = this.makeIR(2.9, 2.1);
+    const rw = c.createGain(); rw.gain.value = 0.5;
+    this.rev.connect(rw); rw.connect(this.master);
+    // shared noise buffer
+    const len = c.sampleRate;
+    this.noiseBuf = c.createBuffer(1, len, c.sampleRate);
+    const nd = this.noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
+    this.drone();
+    this.wind();
+  },
+  makeIR(dur, decay) {
+    const c = this.ctx, rate = c.sampleRate, n = rate * dur | 0;
+    const buf = c.createBuffer(2, n, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay);
+    }
+    return buf;
+  },
+  route(node, dry = 1, wet = 0.35, pan = 0) {
+    const c = this.ctx; let n = node;
+    const sp = this._sp;                         // active spatialization, if any
+    if (sp) {
+      if (sp.muffle > 0.03) {                    // distant sources lose highs
+        const f = c.createBiquadFilter(); f.type = 'lowpass';
+        f.frequency.value = 9500 * Math.pow(0.07, sp.muffle);
+        f.Q.value = 0.4;
+        n.connect(f); n = f;
+      }
+      wet = wet * (1 + 1.6 * sp.muffle);         // far sources turn reverberant
+    }
+    const k = sp ? sp.gain : 1;                  // distance / behind attenuation
+    if (pan && c.createStereoPanner) {
+      const p = c.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
+      n.connect(p); n = p;
+    }
+    if (dry > 0) { const g = c.createGain(); g.gain.value = dry * k; n.connect(g); g.connect(this.master); }
+    if (wet > 0) { const g = c.createGain(); g.gain.value = wet * k; n.connect(g); g.connect(this.rev); }
+  },
+  // view-relative spatialization of a world point
+  panFor(x, z) {
+    const dx = x - cam.x, dz = z - cam.z;
+    const d = Math.hypot(dx, dz);
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const ang = Math.atan2(c * dx - s * dz, s * dx + c * dz);   // 0 = straight ahead
+    return {
+      pan: clamp(Math.sin(ang) * 1.25, -1, 1),
+      gain: 1 / (1 + d / 34) * (1 - 0.45 * clamp(-Math.cos(ang), 0, 1)),
+      muffle: clamp((d - 40) / 260, 0, 1),
+      d
+    };
+  },
+  noiseSrc(when, dur) {
+    const s = this.ctx.createBufferSource();
+    s.buffer = this.noiseBuf; s.loop = true;
+    s.start(when); s.stop(when + dur + 0.1);
+    return s;
+  },
+  // soft bell — the workhorse
+  tone(freq, o = {}) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime + (o.when || 0);
+    const dur = o.dur || 2, vol = o.vol ?? 0.1;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + (o.att || 0.015));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const o1 = c.createOscillator(); o1.type = o.type || 'sine'; o1.frequency.value = freq;
+    const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2.003;
+    const g2 = c.createGain(); g2.gain.value = 0.3;
+    o1.connect(g); o2.connect(g2); g2.connect(g);
+    this._sp = o.sp || null;
+    this.route(g, o.dry ?? 0.7, o.wet ?? 0.5, o.pan ?? 0);
+    this._sp = null;
+    o1.start(t); o2.start(t);
+    const e = t + dur + 0.1; o1.stop(e); o2.stop(e);
+  },
+  // sustained-tone envelope (flute / horn / choir)
+  env(g, t, vol, att, dur, rel) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + att);
+    g.gain.setValueAtTime(vol, t + Math.max(att, dur - rel));
+    g.gain.linearRampToValueAtTime(0.0001, t + dur + rel);
+  },
+  drone() {
+    const c = this.ctx, t = c.currentTime;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.5;
+    const g = c.createGain(); g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.055, t + 4);
+    lp.connect(g); this.route(lp, 1, 0.4);
+    [[73.42, 'sine', 1, 0], [110, 'sine', 0.5, 4], [146.83, 'triangle', 0.35, -3]].forEach(([f, ty, v, det]) => {
+      const o = c.createOscillator(); o.type = ty; o.frequency.value = f; if (det) o.detune.value = det;
+      const og = c.createGain(); og.gain.value = v;
+      o.connect(og); og.connect(lp); o.start();
+    });
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.06;
+    const lg = c.createGain(); lg.gain.value = 140;
+    lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+  },
+  wind() {
+    const c = this.ctx, t = c.currentTime;
+    const src = this.noiseSrc(t, 1e6);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 520; bp.Q.value = 0.8;
+    const g = c.createGain(); g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.035, t + 3);
+    src.connect(bp); bp.connect(g); this.route(g, 1, 0.25);
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.07;
+    const lg = c.createGain(); lg.gain.value = 260;
+    lfo.connect(lg); lg.connect(bp.frequency); lfo.start();
+    const lfo2 = c.createOscillator(); lfo2.frequency.value = 0.045;
+    const lg2 = c.createGain(); lg2.gain.value = 0.014;
+    lfo2.connect(lg2); lg2.connect(g.gain); lfo2.start();
+  },
+  footstep() {
+    if (!this.ctx || !this.noiseBuf || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime;
+    const s = this.noiseSrc(t, 0.15);
+    s.playbackRate.value = 0.7 + Math.random() * 0.5;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = 180 + Math.random() * 120; bp.Q.value = 0.8;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.026 + Math.random() * 0.012, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    s.connect(bp); bp.connect(g); this.route(g, 1, 0.15);
+  },
+  // the traveler's sing: breath swell + resonant chord
+  sing(extra) {
+    if (!this.ctx || !this.noiseBuf || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime;
+    const src = this.noiseSrc(t, 1);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(500, t);
+    bp.frequency.linearRampToValueAtTime(1100, t + 0.5);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.05, t + 0.12);
+    g.gain.linearRampToValueAtTime(0, t + 0.9);
+    src.connect(bp); bp.connect(g); this.route(g, 0.8, 0.5);
+    [[50, 0, 0.16, 3.2], [57, 0.09, 0.12, 3.0], [62, 0.2, 0.11, 3.4], [65, 0.34, 0.09, 3.6]]
+      .forEach(([m, d, v, dur]) => this.tone(midiF(m), { when: d, vol: v, dur, wet: 0.7 }));
+    if (extra) {
+      this.tone(extra, { when: 0.5, vol: 0.05, dur: 3, wet: 0.8 });
+      this.tone(extra * 2, { when: 0.5, vol: 0.06, dur: 3, wet: 0.8 });
+    }
+  },
+
+  // ---------------- instrument voices ----------------
+  // each: (freq, when, dur, vol, pan) — all scheduled on the audio clock
+  vPluck(freq, when, dur, vol, pan, bright = 6, dark = false) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime + when;
+    const o = c.createOscillator(); o.type = dark ? 'sawtooth' : 'triangle';
+    o.frequency.value = freq;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1;
+    lp.frequency.setValueAtTime(Math.min(freq * bright, 9000), t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(freq * 1.1, 120), t + Math.max(dur, 0.4) * 0.8);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.5);
+    o.connect(lp); lp.connect(g);
+    this.route(g, 0.7, 0.45, pan);
+    o.start(t); o.stop(t + dur + 0.6);
+  },
+  vFlute(freq, when, dur, vol, pan) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime + when;
+    const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+    const o2 = c.createOscillator(); o2.type = 'triangle'; o2.frequency.value = freq;
+    const g2 = c.createGain(); g2.gain.value = 0.22;
+    const vib = c.createOscillator(); vib.frequency.value = 4.8;
+    const vg = c.createGain(); vg.gain.setValueAtTime(0, t);
+    vg.gain.linearRampToValueAtTime(freq * 0.009, t + Math.min(0.6, dur * 0.5));
+    vib.connect(vg); vg.connect(o.detune); vg.connect(o2.detune);
+    const g = c.createGain(); this.env(g, t, vol, 0.14, dur, 0.3);
+    o.connect(g); o2.connect(g2); g2.connect(g);
+    const br = this.noiseSrc(t, dur + 0.5);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq * 1.02; bp.Q.value = 2.2;
+    const bg = c.createGain(); this.env(bg, t, vol * 0.16, 0.2, dur, 0.3);
+    br.connect(bp); bp.connect(bg);
+    this.route(g, 0.75, 0.55, pan); this.route(bg, 0.6, 0.55, pan);
+    o.start(t); o2.start(t); vib.start(t);
+    const e = t + dur + 0.5; o.stop(e); o2.stop(e); vib.stop(e);
+  },
+  vDrum(when, vol, pan, deep = false) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime + when;
+    const o = c.createOscillator(); o.type = 'sine';
+    const f0 = deep ? 68 : 108, f1 = deep ? 34 : 47, dc = deep ? 0.8 : 0.32;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dc);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (deep ? 1.2 : 0.5));
+    o.connect(g); this.route(g, 0.9, 0.3, pan);
+    o.start(t); o.stop(t + (deep ? 1.3 : 0.6));
+    const n = this.noiseSrc(t, 0.12);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = deep ? 95 : 190; bp.Q.value = 1;
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(vol * 0.5, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    n.connect(bp); bp.connect(ng); this.route(ng, 0.8, 0.2, pan);
+  },
+  vBell(freq, when, dur, vol, pan) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime + when;
+    [[1, 1], [2.76, 0.4], [5.4, 0.14]].forEach(([r, v]) => {
+      const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = freq * r;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(vol * v, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur * (r === 1 ? 1 : 0.6));
+      o.connect(g); this.route(g, 0.6, 0.6, pan);
+      o.start(t); o.stop(t + dur + 0.1);
+    });
+  },
+  vShaker(when, vol, pan) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime + when;
+    const n = this.noiseSrc(t, 0.09);
+    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3800;
+    const g = c.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    n.connect(hp); hp.connect(g); this.route(g, 0.7, 0.25, pan);
+  },
+  vHorn(freq, when, dur, vol, pan) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime + when;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 760; lp.Q.value = 0.8;
+    const g = c.createGain(); this.env(g, t, vol, 0.35, dur, 0.5);
+    [-7, 7].forEach(d => {
+      const o = c.createOscillator(); o.type = 'sawtooth';
+      o.frequency.value = freq; o.detune.value = d;
+      o.connect(lp); o.start(t); o.stop(t + dur + 0.6);
+    });
+    lp.connect(g); this.route(g, 0.7, 0.55, pan);
+  },
+  vChoir(freq, when, dur, vol, pan) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const c = this.ctx, t = c.currentTime + when;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1200;
+    const g = c.createGain(); this.env(g, t, vol, dur * 0.3, dur, dur * 0.4);
+    const vib = c.createOscillator(); vib.frequency.value = 4.2;
+    const vg = c.createGain(); vg.gain.value = 6;
+    vib.connect(vg); vib.start(t); vib.stop(t + dur + 0.5);
+    [-9, 0, 9].forEach(d => {
+      const o = c.createOscillator(); o.type = 'triangle';
+      o.frequency.value = freq; o.detune.value = d;
+      vg.connect(o.detune);
+      o.connect(lp); o.start(t); o.stop(t + dur + 0.5);
+    });
+    lp.connect(g); this.route(g, 0.65, 0.7, pan);
+  },
+
+  // play a written phrase with an instrument's voice
+  playPhrase(inst, volScale = 1, whenBase = 0, pan = 0, sp = null) {
+    this._sp = sp;
+    for (const [m, off, dur] of inst.phrase) {
+      const f = midiF(m), w = whenBase + off * SPB, d = dur * SPB;
+      switch (inst.synth) {
+        case 'pluck': this.vPluck(f, w, d, 0.15 * volScale, pan, 6); break;
+        case 'pluckDark': this.vPluck(f, w, d, 0.16 * volScale, pan, 3.2, true); break;
+        case 'pluckBright': this.vPluck(f, w, d, 0.13 * volScale, pan, 9); break;
+        case 'flute': this.vFlute(f, w, d, 0.12 * volScale, pan); break;
+        case 'drum': this.vDrum(w, 0.2 * volScale, pan); break;
+        case 'drumDeep': this.vDrum(w, 0.24 * volScale, pan, true); break;
+        case 'bell': this.vBell(f, w, Math.max(d * 2.2, 2.4), 0.11 * volScale, pan); break;
+        case 'shaker': this.vShaker(w, 0.05 * volScale, pan); break;
+        case 'horn': this.vHorn(f, w, d, 0.12 * volScale, pan); break;
+        case 'choir': this.vChoir(f, w, d, 0.1 * volScale, pan); break;
+      }
+    }
+    this._sp = null;
+  },
+
+  // victory burst: a warm chord progression that gathers every voice
+  chordBurst(t0) {
+    if (!this.ctx) return;
+    const rel = at => at - this.ctx.currentTime;
+    const CH = 2.55;   // seconds per chord
+    const prog = [
+      { root: [50, 57, 62, 65], arp: [74, 77, 81, 86] },   // Dm
+      { root: [46, 53, 58, 62], arp: [70, 74, 77, 82] },   // Bb
+      { root: [41, 48, 53, 57], arp: [69, 72, 77, 81] },   // F
+      { root: [48, 55, 60, 64], arp: [67, 72, 76, 79] },   // C
+      { root: [50, 57, 62, 65, 69, 74], arp: [62, 65, 69, 74, 77, 81, 86, 89] } // Dm add9
+    ];
+    prog.forEach((ch, ci) => {
+      const at = t0 + ci * CH;
+      ch.root.forEach(m => this.vChoir(midiF(m), rel(at), CH * 0.92, 0.075, 0));
+      this.vDrum(rel(at), 0.22, 0, ci === 4);
+      if (ci >= 2) ch.arp.forEach((m, k) =>
+        this.vBell(midiF(m), rel(at + 0.34 + k * 0.3), 2.2, 0.08, ((k % 2) ? 0.14 : -0.14)));
+      if (ci >= 1) [0, 1, 2, 3].forEach(b =>
+        this.vShaker(rel(at + b * 0.64), 0.045, ((b % 2) ? 0.1 : -0.1)));
+      if (ci === 4) ch.arp.forEach((m, k) =>
+        this.vPluck(midiF(m), rel(at + 0.05 + k * 0.11), 0.9, 0.09, ((k % 2) ? 0.12 : -0.12), 7));
+    });
+    // cascade: every instrument bows once more, in order
+    INSTRUMENTS.forEach((inst, i) => {
+      const w = rel(t0 + 5 * CH + i * 0.55);
+      this.playPhrase(inst, 0.55, w, IPANS[i]);
+    });
+  }
+};
+
+// ---------------- the instruments (the ten voices) ----------------
+// phrases are [midi, beat, durBeats] in D minor pentatonic over the D drone
+const INSTRUMENTS = [
+  { name: 'Sandstone Lyre', synth: 'pluck',
+    phrase: [[62,0,1],[65,1,1],[67,2,1],[69,3,1],[74,4,2],[69,6,2]] },
+  { name: 'Ney Flute',      synth: 'flute',
+    phrase: [[69,0,1.5],[67,1.5,0.5],[65,2,1],[62,3,2],[65,5,1],[67,6,2]] },
+  { name: 'Frame Drum',     synth: 'drum',
+    phrase: [[50,0,0.5],[50,1.5,0.5],[57,2,0.5],[50,3,0.5],[50,4,0.5],[57,5.5,0.5],[50,6,0.5],[57,7,0.5]] },
+  { name: 'Desert Oud',     synth: 'pluckDark',
+    phrase: [[50,0,1],[53,1,0.5],[57,2,1],[53,3,0.5],[62,4,2],[60,6,1],[57,7,1]] },
+  { name: 'Wind Bells',     synth: 'bell',
+    phrase: [[74,0,1.5],[69,1,1.5],[72,2,1.5],[69,3,1.5],[74,4,1.5],[77,5,1.5],[74,6,1.5],[72,7,1.5]] },
+  { name: 'Reed Harp',      synth: 'pluckBright',
+    phrase: [[50,0,0.25],[53,0.5,0.25],[57,1,0.25],[62,1.5,0.25],[65,2,0.25],[69,2.5,0.25],[74,3,0.25],[69,3.5,0.25],
+             [50,4,0.25],[53,4.5,0.25],[57,5,0.25],[62,5.5,0.25],[65,6,0.25],[69,6.5,0.25],[74,7,0.25],[72,7.5,0.25]] },
+  { name: 'Coin Shaker',    synth: 'shaker',
+    phrase: [[50,0,0.25],[50,0.5,0.25],[50,1,0.25],[50,1.5,0.25],[50,2,0.25],[50,2.5,0.25],[50,3,0.25],[50,3.5,0.25],
+             [50,4,0.25],[50,4.5,0.25],[50,5,0.25],[50,5.5,0.25],[50,6,0.25],[50,6.5,0.25],[50,7,0.25],[50,7.5,0.25]] },
+  { name: 'Ram\u2019s Horn',    synth: 'horn',
+    phrase: [[50,0,3.5],[53,4,3.5],[57,7.5,0.5]] },
+  { name: 'Deep Drum',      synth: 'drumDeep',
+    phrase: [[38,0,0.5],[38,1.5,0.5],[38,4,0.5],[38,5.5,0.5],[38,6,0.5],[38,7.5,0.5]] },
+  { name: 'Choir Stone',    synth: 'choir',
+    phrase: [[50,0,8],[57,2,6],[62,4,4],[65,6,2]] }
+];
+// fixed stereo voice for each layer, so the full mix has width
+const IPANS = [0, -0.12, 0.12, -0.18, 0.18, 0.08, -0.08, 0, 0, 0];
+
+// =====================================================================
+//  WORLD — a contained canyon shrine
+// =====================================================================
+const XMAX = 114, ZMIN = -24, ZMAX = 169;             // walkable bounds
+const ALTAR = { x: 0, z: 150 };                       // the focal landmark
+
+// gentle rolling floor inside the arena (units ~ meters)
+function groundH(x, z) {
+  return 0.9 * Math.sin(x * 0.05 + z * 0.03)
+       + 0.6 * Math.sin(x * 0.11 - z * 0.07 + 2)
+       + 0.3 * Math.sin((x + z) * 0.15 + 4.2);
+}
+// distant parallax dunes, seen over the walls (far silhouettes only)
+function ridgeH(k, x) {
+  return 5 + 3.2 * Math.sin(x * 0.0083 + k * 1.7)
+       + 2.1 * Math.sin(x * 0.019 + k * 0.9)
+       + 1.0 * Math.sin(x * 0.047 + k * 2.3);
+}
+// the four enclosing walls: dark cliffs and dunes
+const WALLS = [
+  { k: 'L', x: -124, ph: 0.0 },
+  { k: 'R', x: 124, ph: 2.1 },
+  { k: 'B', z: -34, ph: 4.2 },
+  { k: 'F', z: 181, ph: 1.3 }
+];
+function wallH(w, lat) {
+  return 13 + 4.4 * Math.sin(lat * 0.045 + w.ph)
+       + 2.7 * Math.sin(lat * 0.017 + w.ph * 1.7)
+       + 1.4 * Math.sin(lat * 0.09 + w.ph * 0.6);
+}
+
+// the ten treasures, tucked into alcoves and ruins (deterministic)
+const treasureSpots = [
+  [-98, 30], [95, 48], [-72, 88], [78, 100], [-18, 65],
+  [38, 78], [-100, 128], [102, 140], [-8, 118], [-52, 148]
+];
+const treasures = INSTRUMENTS.map((inst, i) => ({
+  i, x: treasureSpots[i][0], z: treasureSpots[i][1],
+  found: false, foundT: 0, flyK: 1, arrived: true, ph: rand(TAU)
+}));
+
+// ruins: boulders (0), broken pillars (1), arches (2) — they form the alcoves
+const landmarks = [
+  [-104, 22, 0, 1.6], [-92, 38, 1, 1.2], [101, 42, 0, 1.4], [88, 55, 1, 1.1],
+  [-79, 82, 0, 1.8], [-64, 95, 2, 1.3], [86, 94, 0, 1.5], [70, 108, 1, 1.3],
+  [-25, 58, 0, 1.3], [-10, 72, 1, 1.0], [45, 72, 0, 1.2], [31, 85, 2, 1.2],
+  [-106, 120, 0, 1.7], [-93, 136, 1, 1.4], [109, 133, 0, 1.5], [95, 148, 1, 1.2],
+  [-15, 111, 0, 1.4], [0, 126, 2, 1.4], [-59, 141, 0, 1.6], [-44, 155, 1, 1.2],
+  [20, 25, 0, 1.5], [60, 15, 1, 1.2], [-40, 10, 0, 1.3], [0, 45, 2, 1.5],
+  [55, 125, 0, 1.4], [-30, 100, 1, 1.1], [15, 160, 0, 1.5], [-115, 70, 0, 1.8],
+  [115, 90, 1, 1.6], [70, 55, 0, 1.2]
+].map(([x, z, kind, s]) => ({ x, z, kind, s }));
+
+// =====================================================================
+//  STATE
+// =====================================================================
+const SPD = 11;
+const p = { x: 0, z: 5, vx: 0, vz: 0, singT: -9, stepAcc: 0, moving: false };
+const cam = { x: 0, z: -9, yh: 5.2 };
+let yaw = 0;
+let started = false, time = 0, litCount = 0;
+let victoryT0 = -1, loopNext = 0;
+let warm = 0;                        // golden tint grows with each find
+const particles = [];
+const waves = [];
+const keys = {};
+let camBack = 9;
+
+// ---------------- UI ----------------
+const titleEl = document.getElementById('title');
+const hintEl = document.getElementById('hint');
+const bannerEl = document.getElementById('banner');
+const toastEl = document.getElementById('toast');
+const harmonyEl = document.getElementById('harmony');
+const gemsEl = document.getElementById('gems');
+const hcountEl = document.getElementById('hcount');
+const secnameEl = document.getElementById('secname');
+const audioBtn = document.getElementById('audioBtn');
+const victoryEl = document.getElementById('victory');
+const vstatEl = document.getElementById('vstat');
+
+function buildHUD() {
+  gemsEl.innerHTML = '';
+  treasures.forEach(() => {
+    const s = document.createElement('span');
+    s.className = 'gem';
+    gemsEl.appendChild(s);
+  });
+}
+function updateHUD() {
+  [...gemsEl.children].forEach((g, i) => g.classList.toggle('lit', treasures[i].found));
+  hcountEl.textContent = litCount + ' / 10';
+  secnameEl.textContent = litCount === 0 ? ''
+    : litCount >= 10 ? 'all ten voices — the sanctuary song'
+    : `${litCount} ${litCount === 1 ? 'voice' : 'voices'} singing`;
+}
+let toastTimer = 0;
+function showToast(txt) {
+  toastEl.textContent = txt;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3400);
+}
+function showBanner(txt) {
+  bannerEl.textContent = txt;
+  bannerEl.classList.add('show');
+  setTimeout(() => bannerEl.classList.remove('show'), 9000);
+}
+document.getElementById('stayBtn').addEventListener('click', () => victoryEl.classList.remove('show'));
+document.getElementById('againBtn').addEventListener('click', () => location.reload());
+
+function start() {
+  if (started) return;
+  started = true;
+  audioBtn.classList.add('on');
+  titleEl.classList.add('hidden');
+  harmonyEl.classList.add('show');
+  hintEl.classList.add('show');
+  setTimeout(() => hintEl.classList.remove('show'), 11000);
+  try {
+    A.init();
+    if (A.ctx) A.ctx.resume().catch(() => {});
+    else audioBtn.classList.remove('on');
+  } catch (err) { audioBtn.classList.remove('on'); }
+  A.tone(midiF(74), { vol: 0.06, dur: 3, wet: 0.8 });
+  A.tone(midiF(81), { when: 0.4, vol: 0.05, dur: 3, wet: 0.8 });
+}
+function toggleAudio() {
+  if (!A.ctx) { start(); return; }
+  if (A.ctx.state === 'running') { A.ctx.suspend(); audioBtn.classList.remove('on'); }
+  else { A.ctx.resume().catch(() => {}); audioBtn.classList.add('on'); }
+}
+
+// ---------------- projection ----------------
+function project(wx, wy, wz) {
+  const dx = wx - cam.x, dz = wz - cam.z;
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const vx = c * dx - s * dz;
+  const vz = s * dx + c * dz;
+  if (vz < 0.6) return null;
+  const sc = F / vz;
+  return { x: W * 0.5 + vx * sc, y: HOR + (cam.yh - wy) * sc, s: sc, vz };
+}
+
+// ---------------- input ----------------
+addEventListener('keydown', e => {
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
+  if (!started) { start(); return; }
+  keys[e.code] = true;
+  if (e.repeat) return;
+  if (e.code === 'Space') sing();
+  if (e.code === 'KeyM') toggleAudio();
+});
+addEventListener('keyup', e => keys[e.code] = false);
+let dragging = false, dragX = 0;
+addEventListener('pointerdown', e => {
+  if (!started) { start(); return; }
+  dragging = true; dragX = e.clientX;
+});
+addEventListener('pointermove', e => {
+  if (dragging) { yaw += (e.clientX - dragX) * 0.0032; dragX = e.clientX; }
+});
+addEventListener('pointerup', () => dragging = false);
+audioBtn.addEventListener('click', e => { e.stopPropagation(); toggleAudio(); });
+document.addEventListener('visibilitychange', () => {
+  if (A.ctx && document.hidden && A.ctx.state === 'running') {
+    A.ctx.suspend(); audioBtn.classList.remove('on');
+  }
+});
+
+// ---------------- singing: collect + sonar ----------------
+function sing() {
+  if (time - p.singT < 0.8) return;
+  p.singT = time;
+  waves.push({ x: p.x, z: p.z, r: 0.6, max: 22 });
+  spawnNotes();
+  let best = null, bestD = 1e9;
+  for (const t of treasures) {
+    if (t.found) continue;
+    const d = Math.hypot(t.x - p.x, t.z - p.z);
+    if (d < bestD) { bestD = d; best = t; }
+  }
+  if (best && bestD < 26) { awaken(best); return; }
+  A.sing(litCount > 0 ? midiF(62) : null);
+  // sonar: unfound instruments answer from the ruins
+  for (const t of treasures) {
+    if (t.found) continue;
+    const d = Math.hypot(t.x - p.x, t.z - p.z);
+    if (d < 220) {
+      const sp = A.panFor(t.x, t.z);
+      A.tone(midiF(62 + [0, 2, 3, 5, 7, 10, 12, 14, 15, 17][t.i]), {
+        when: 0.3 + d / 130, vol: 0.014 + 0.1 * sp.gain,
+        dur: 2.6, wet: 0.9, pan: sp.pan, sp
+      });
+      waves.push({ x: t.x, z: t.z, r: 0.4, max: 9, faint: true });
+    }
+  }
+}
+
+function awaken(t) {
+  if (t.found) return;
+  t.found = true; t.foundT = time; t.flyK = 0; t.arrived = false;
+  litCount++;
+  warm = litCount / 10;
+  updateHUD();
+  showToast(`${INSTRUMENTS[t.i].name} joins the song`);
+  A.playPhrase(INSTRUMENTS[t.i], 1.15, 0.15, A.panFor(t.x, t.z).pan, A.panFor(t.x, t.z));
+  A.tone(midiF(62) * 2, { when: 0.9, vol: 0.05, dur: 3.5, wet: 0.85 });
+  sparkleAt(t.x, groundH(t.x, t.z) + 1, t.z, 26);
+  waves.push({ x: t.x, z: t.z, r: 0.6, max: 18 });
+  if (litCount === 10) beginVictory();
+}
+
+function beginVictory() {
+  victoryT0 = time;
+  const s = Math.floor(time);
+  vstatEl.textContent = `completed in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  if (A.ctx) A.chordBurst(A.ctx.currentTime + 0.8);
+  showBanner('THE SANCTUARY SINGS');
+  showToast('every voice of the shrine, together as one');
+  setTimeout(() => victoryEl.classList.add('show'), 3400);
+}
+
+// ---------------- particles ----------------
+function spawnNotes() {
+  for (let i = 0; i < 5; i++) particles.push({
+    kind: 'note', x: p.x + rand(-1, 1), y: groundH(p.x, p.z) + 1.6, z: p.z + rand(-1, 1),
+    vx: rand(-0.5, 0.5), vy: rand(0.7, 1.4), vz: rand(-0.5, 0.5),
+    life: rand(1.4, 2.2), life0: 2.2, size: rand(0.8, 1.2), ph: rand(TAU)
+  });
+}
+function sparkleAt(x, y, z, n) {
+  for (let i = 0; i < n; i++) particles.push({
+    kind: 'spark', x: x + rand(-1.5, 1.5), y: y + rand(-1, 1.5), z: z + rand(-1.5, 1.5),
+    vx: rand(-1, 1), vy: rand(0.8, 2.4), vz: rand(-1, 1),
+    life: rand(0.9, 2), life0: 2, size: rand(0.05, 0.16), ph: rand(TAU)
+  });
+}
+function puff(x, z, n) {
+  for (let i = 0; i < n; i++) particles.push({
+    kind: 'puff', x: x + rand(-0.4, 0.4), y: groundH(x, z) + 0.1, z: z + rand(-0.4, 0.4),
+    vx: rand(-0.8, 0.8), vy: rand(0.3, 0.9), vz: rand(-0.8, 0.8),
+    life: rand(0.4, 0.8), life0: 0.8, size: rand(0.15, 0.3)
+  });
+}
+// ambient dust drifting in a volume around the camera
+const dusts = Array.from({ length: 55 }, () => ({ x: rand(-30, 30), y: rand(0.2, 5), z: rand(4, 70), ph: rand(TAU), s: rand(0.02, 0.06) }));
+
+// =====================================================================
+//  UPDATE
+// =====================================================================
+function update(dt) {
+  // --- look ---
+  const turn = (keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0);
+  yaw += turn * 1.5 * dt;
+  yaw = clamp(yaw, -1.05, 1.05);
+
+  // --- movement (view-relative), bounded to the canyon ---
+  let iF = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  let iR = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  if (!started) iF = 0.25;
+  const len = Math.hypot(iF, iR) || 1;
+  const tvx = (Math.sin(yaw) * iF + Math.cos(yaw) * iR) / len * SPD;
+  const tvz = (Math.cos(yaw) * iF - Math.sin(yaw) * iR) / len * SPD;
+  p.vx = lerp(p.vx, tvx, 1 - Math.pow(0.002, dt));
+  p.vz = lerp(p.vz, tvz, 1 - Math.pow(0.002, dt));
+  p.x = clamp(p.x + p.vx * dt, -XMAX, XMAX);
+  p.z = clamp(p.z + p.vz * dt, ZMIN, ZMAX);
+  // the altar is solid — push the traveler around its base
+  {
+    const dx = p.x - ALTAR.x, dz = p.z - ALTAR.z, d = Math.hypot(dx, dz);
+    if (d < 17 && d > 0.001) { p.x = ALTAR.x + dx / d * 17; p.z = ALTAR.z + dz / d * 17; }
+  }
+  p.moving = Math.hypot(p.vx, p.vz) > 1.5;
+
+  if (started && p.moving) {
+    p.stepAcc += Math.hypot(p.vx, p.vz) * dt;
+    if (p.stepAcc > 2.1) { p.stepAcc = 0; A.footstep(); puff(p.x, p.z, 2); }
+  }
+
+  // --- camera: follows with a HARD screen clamp (player never leaves view) ---
+  camBack = lerp(camBack, victoryT0 >= 0 ? 12.5 : 9, 1 - Math.pow(0.1, dt));
+  cam.z = p.z - camBack;
+  cam.x = lerp(cam.x, p.x, 1 - Math.pow(0.008, dt));
+  const sPlayer = F / camBack;
+  const maxXoff = 0.22 * W / sPlayer;
+  cam.x = clamp(cam.x, p.x - maxXoff, p.x + maxXoff);
+  const lift = victoryT0 >= 0 ? Math.min(4, (time - victoryT0) * 0.06) : 0;
+  cam.yh = lerp(cam.yh, groundH(cam.x, cam.z) + 4.2 + lift, 1 - Math.pow(0.05, dt));
+
+  // --- the song: synced layers, scheduled on the audio clock ---
+  if (started && A.ctx && A.ctx.state === 'running') {
+    const now = A.ctx.currentTime;
+    const found = treasures.filter(t => t.found);
+    if (found.length && loopNext < now - 0.05) loopNext = now + 0.12;    // (re)sync
+    const vol = found.length ? 2.2 / Math.sqrt(found.length + 2) : 0;
+    while (found.length && loopNext < now + 0.9) {
+      for (const t of found)
+        A.playPhrase(INSTRUMENTS[t.i], vol, loopNext - now, IPANS[t.i]);
+      loopNext += LOOPLEN;
+    }
+  }
+
+  // --- treasure flight to the altar + arrival sparkles ---
+  for (const t of treasures) {
+    if (t.found && t.flyK < 1) {
+      t.flyK = Math.min(1, t.flyK + dt / 1.8);
+      if (t.flyK >= 1 && !t.arrived) {
+        t.arrived = true;
+        sparkleAt(ALTAR.x, 11, ALTAR.z, 30);
+        A.tone(midiF(74 + t.i), { vol: 0.045, dur: 2.4, wet: 0.9 });
+      }
+    }
+  }
+
+  // --- glowing trails drift from unfound artifacts ---
+  if (started) for (const t of treasures) {
+    if (t.found) continue;
+    const d = Math.hypot(t.x - p.x, t.z - p.z);
+    if (d < 210 && Math.random() < 0.22) particles.push({
+      kind: 'spark', x: t.x + rand(-0.8, 0.8), y: groundH(t.x, t.z) + rand(0.4, 2.6), z: t.z + rand(-0.8, 0.8),
+      vx: rand(-0.15, 0.15), vy: rand(0.4, 1.1), vz: rand(-0.15, 0.15),
+      life: rand(0.8, 1.7), life0: 1.7, size: rand(0.04, 0.1), ph: rand(TAU)
+    });
+  }
+
+  // --- victory fireworks over the altar ---
+  if (victoryT0 >= 0 && time - victoryT0 < 14 && Math.random() < 0.3) {
+    sparkleAt(ALTAR.x + rand(-14, 14), rand(10, 22), ALTAR.z + rand(-6, 6), 12);
+  }
+
+  // --- particles ---
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const q = particles[i];
+    q.life -= dt;
+    if (q.life <= 0) { particles.splice(i, 1); continue; }
+    q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+    if (q.kind === 'spark') { q.vy += 0.4 * dt; q.x += Math.sin(time * 4 + q.ph) * 0.4 * dt; }
+    if (q.kind === 'note') q.x += Math.sin(time * 3 + q.ph) * 0.5 * dt;
+    if (q.kind === 'puff') { q.vx *= 1 - 1.5 * dt; q.vz *= 1 - 1.5 * dt; }
+  }
+
+  // --- waves ---
+  for (let i = waves.length - 1; i >= 0; i--) {
+    waves[i].r += 16 * dt;
+    if (waves[i].r > waves[i].max) waves.splice(i, 1);
+  }
+
+  // --- dust drift ---
+  for (const d of dusts) {
+    d.x += (2.2 + Math.sin(time * 0.7 + d.ph)) * dt;
+    if (d.x > 30) d.x = -30;
+  }
+}
+
+// =====================================================================
+//  RENDER
+// =====================================================================
+function drawSky() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#1a0f2e');
+  g.addColorStop(0.42, '#6b2e4a');
+  g.addColorStop(0.58, '#b3564e');
+  g.addColorStop(0.72, '#d97e5a');
+  g.addColorStop(1, '#e89a63');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  // warm tint that grows as the sanctuary wakes
+  if (warm > 0) {
+    ctx.fillStyle = `rgba(255,166,90,${0.1 * warm})`;
+    ctx.fillRect(0, 0, W, HOR + H * 0.1);
+  }
+}
+
+function drawStars() {
+  ctx.save();
+  for (const st of stars) {
+    const sx = (((st.x - yaw * 0.16) % 1) + 1) % 1 * W;
+    const sy = st.y * HOR * 0.86;
+    const tw = 0.5 + 0.5 * Math.sin(time * st.tw + st.ph);
+    ctx.fillStyle = `rgba(255,236,205,${st.a * tw * (0.4 + warm * 0.6)})`;
+    ctx.fillRect(sx, sy, st.s, st.s);
+  }
+  ctx.restore();
+}
+
+function drawSun() {
+  const sx = W * 0.5 - yaw * W * 0.38;
+  const sy = HOR * 0.42;
+  ctx.save();
+  const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, H * 0.36);
+  gr.addColorStop(0, 'rgba(255,190,110,0.5)');
+  gr.addColorStop(0.25, 'rgba(255,150,90,0.18)');
+  gr.addColorStop(1, 'rgba(255,120,70,0)');
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, W, H);
+  const dg = ctx.createRadialGradient(sx, sy, 0, sx, sy, H * 0.062);
+  dg.addColorStop(0, 'rgba(255,246,214,0.95)');
+  dg.addColorStop(0.6, 'rgba(255,214,140,0.55)');
+  dg.addColorStop(1, 'rgba(255,190,110,0)');
+  ctx.fillStyle = dg;
+  ctx.beginPath(); ctx.arc(sx, sy, H * 0.062, 0, TAU); ctx.fill();
+  // glow pooling on the sand below the sun
+  const gg = ctx.createRadialGradient(sx, HOR + H * 0.03, 0, sx, HOR + H * 0.03, W * 0.3);
+  gg.addColorStop(0, 'rgba(255,170,100,0.16)');
+  gg.addColorStop(1, 'rgba(255,170,100,0)');
+  ctx.fillStyle = gg;
+  ctx.fillRect(0, HOR, W, H - HOR);
+  ctx.restore();
+}
+
+function drawGroundBase() {
+  const g = ctx.createLinearGradient(0, HOR, 0, H);
+  g.addColorStop(0, '#d08163');
+  g.addColorStop(0.25, '#a35a52');
+  g.addColorStop(1, '#3c2231');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, HOR, W, H - HOR);
+  // ground height-fog: a haze band that swallows the far floor
+  const fg = ctx.createLinearGradient(0, HOR, 0, HOR + H * 0.3);
+  fg.addColorStop(0, 'rgba(219,165,140,0.55)');
+  fg.addColorStop(1, 'rgba(219,165,140,0)');
+  ctx.fillStyle = fg;
+  ctx.fillRect(0, HOR, W, H * 0.3);
+}
+
+// distant parallax dune line beyond the walls — band between crest and ground line
+function drawRidge(k) {
+  const Z = k * 100;
+  const dz = Z - cam.z;
+  const t = clamp(dz / 650, 0, 1);
+  const top = [], base = [];
+  for (let sx = -6; sx <= W + 12; sx += 8) {
+    const ang = Math.atan((sx - W * 0.5) / F);
+    const dirz = Math.max(Math.cos(yaw + ang), 0.12);
+    const dirx = Math.sin(yaw + ang);
+    const tt = dz / dirz;
+    const wx = cam.x + tt * dirx;
+    const vz = Math.sin(yaw) * (tt * dirx) + Math.cos(yaw) * dz;
+    const sc = F / Math.max(vz, 0.6);
+    top.push([sx, Math.max(HOR + (cam.yh - ridgeH(k, wx)) * sc, HOR - H * 0.03)]);
+    base.push([sx, HOR + (cam.yh + 2) * sc]);
+  }
+  ctx.beginPath();
+  ctx.moveTo(top[0][0], top[0][1]);
+  for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
+  for (let i = base.length - 1; i >= 0; i--) ctx.lineTo(base[i][0], base[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = mixColor('#6b4048', '#d9a184', 0.35 + t * 0.6);
+  ctx.fill();
+  ctx.beginPath();
+  for (let i = 0; i < top.length; i++) i ? ctx.lineTo(top[i][0], top[i][1]) : ctx.moveTo(top[i][0], top[i][1]);
+  ctx.strokeStyle = `rgba(255,200,140,${0.14 * (1 - t) + 0.05})`;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+}
+
+// ray-hit distance to a wall plane (for depth sorting); 1e9 if not ahead
+function wallT(w, ang) {
+  const dirx = Math.sin(yaw + ang), dirz = Math.cos(yaw + ang);
+  let t = NaN;
+  if (w.k === 'L' && dirx < -0.03) t = (w.x - cam.x) / dirx;
+  else if (w.k === 'R' && dirx > 0.03) t = (w.x - cam.x) / dirx;
+  else if (w.k === 'B' && dirz < -0.03) t = (w.z - cam.z) / dirz;
+  else if (w.k === 'F' && dirz > 0.03) t = (w.z - cam.z) / dirz;
+  return (t > 0 && t < 900) ? t : 1e9;
+}
+function wallSortZ(w) {
+  let m = 1e9;
+  for (const a of [0, 0.5, -0.5, 1.0, -1.0]) m = Math.min(m, wallT(w, a));
+  return m;
+}
+
+// one enclosing wall: dark cliff band between crest and ground line
+function drawWall(w) {
+  const top = [], base = [];
+  let tSum = 0, tN = 0;
+  for (let sx = -6; sx <= W + 12; sx += 10) {
+    const ang = Math.atan((sx - W * 0.5) / F);
+    const t = wallT(w, ang);
+    if (!(t > 0 && t < 900)) continue;
+    const dirx = Math.sin(yaw + ang), dirz = Math.cos(yaw + ang);
+    const wx = w.k === 'L' || w.k === 'R' ? w.x : cam.x + t * dirx;
+    const wz = w.k === 'L' || w.k === 'R' ? cam.z + t * dirz : w.z;
+    const lat = w.k === 'L' || w.k === 'R' ? wz : wx;
+    const tp = project(wx, wallH(w, lat), wz);
+    const bp = project(wx, -2.5, wz);
+    if (!tp || !bp) continue;
+    top.push([sx, tp.y]);
+    base.push([sx, bp.y]);
+    tSum += t; tN++;
+  }
+  if (top.length < 3) return;
+  const tn = clamp((tSum / tN) / 240, 0, 1);
+  const col = mixColor('#2c1b2e', '#8f5550', tn * 0.85);
+  ctx.beginPath();
+  ctx.moveTo(top[0][0], top[0][1]);
+  for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
+  for (let i = base.length - 1; i >= 0; i--) ctx.lineTo(base[i][0], base[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = col;
+  ctx.fill();
+  // crest light
+  ctx.beginPath();
+  for (let i = 0; i < top.length; i++) i ? ctx.lineTo(top[i][0], top[i][1]) : ctx.moveTo(top[i][0], top[i][1]);
+  ctx.strokeStyle = `rgba(255,200,140,${0.32 * (1 - tn) + 0.08})`;
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  // strata line below the crest
+  ctx.beginPath();
+  for (let i = 0; i < top.length; i++) i ? ctx.lineTo(top[i][0], top[i][1] + 14) : ctx.moveTo(top[i][0], top[i][1] + 14);
+  ctx.strokeStyle = `rgba(255,200,140,${(0.32 * (1 - tn) + 0.08) * 0.3})`;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+// soft projected shadow blob under a world point
+function drawShadow(wx, wz, r) {
+  const gy = groundH(wx, wz);
+  const pr = project(wx, gy, wz);
+  if (!pr) return;
+  ctx.fillStyle = 'rgba(20,8,16,0.22)';
+  ctx.beginPath();
+  ctx.ellipse(pr.x + r * pr.s * 0.18, pr.y + 1, r * pr.s, r * pr.s * 0.26, 0, 0, TAU);
+  ctx.fill();
+}
+
+// ruins: boulders, broken pillars, arches
+function drawLandmark(lm) {
+  const gy0 = groundH(lm.x, lm.z);
+  const pr = project(lm.x, gy0, lm.z);
+  if (!pr || pr.x < -160 || pr.x > W + 160) return;
+  const s = pr.s, x = pr.x, gy = pr.y;
+  const fog = clamp(pr.vz / 260, 0, 1);
+  const col = fogMix('#33202e', fog);
+  ctx.fillStyle = col;
+  ctx.strokeStyle = col;
+  const sz = lm.s * s;
+  drawShadow(lm.x, lm.z, lm.s * 1.1);
+  if (lm.kind === 0) {                       // boulder
+    ctx.beginPath();
+    ctx.ellipse(x, gy + 1, 1.1 * sz, 0.85 * sz, 0, Math.PI, TAU);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = `rgba(255,190,130,${0.22 * (1 - fog)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(x, gy + 1, 1.1 * sz, 0.85 * sz, 0, Math.PI * 1.12, TAU - 0.25);
+    ctx.stroke();
+  } else if (lm.kind === 1) {                // broken pillar
+    const w = 0.45 * sz, h = 2.6 * sz;
+    ctx.fillRect(x - w, gy - h, w * 2, h);
+    ctx.beginPath();
+    ctx.moveTo(x - w, gy - h);
+    ctx.lineTo(x - w * 0.3, gy - h - 0.5 * sz);
+    ctx.lineTo(x + w * 0.4, gy - h - 0.25 * sz);
+    ctx.lineTo(x + w, gy - h - 0.55 * sz);
+    ctx.lineTo(x + w, gy - h);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = `rgba(255,190,130,${0.24 * (1 - fog)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + w, gy); ctx.lineTo(x + w, gy - h - 0.5 * sz);
+    ctx.stroke();
+  } else {                                   // weathered arch
+    const w = 1.7 * sz, h = 3.4 * sz, pw = 0.34 * sz;
+    ctx.fillRect(x - w, gy - h, pw, h);
+    ctx.fillRect(x + w - pw, gy - h, pw, h);
+    ctx.lineWidth = pw * 1.6;
+    ctx.strokeStyle = col;
+    ctx.beginPath();
+    ctx.arc(x, gy - h, w, Math.PI, TAU);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(255,190,130,${0.2 * (1 - fog)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, gy - h, w + pw, Math.PI * 1.08, TAU - 0.15);
+    ctx.stroke();
+  }
+}
+
+// the grand altar: a stepped pyramid with ten gem sockets and a light pillar
+function drawAltar() {
+  const tiers = [18, 14, 10.5, 7];
+  const TH = 2.6;
+  const fog = clamp(Math.hypot(ALTAR.x - cam.x, ALTAR.z - cam.z) / 300, 0, 1);
+  drawShadow(ALTAR.x, ALTAR.z, 15);
+
+  // tiers: front face + top sliver
+  for (let j = 0; j < 4; j++) {
+    const hw = tiers[j], hd = hw * 0.85;
+    const y0 = j * TH, y1 = y0 + TH;
+    const fl = project(ALTAR.x - hw, y0, ALTAR.z - hd);
+    const fr = project(ALTAR.x + hw, y0, ALTAR.z - hd);
+    const tl = project(ALTAR.x - hw, y1, ALTAR.z - hd);
+    const tr = project(ALTAR.x + hw, y1, ALTAR.z - hd);
+    const bl = project(ALTAR.x - hw * 0.72, y1, ALTAR.z + hd);
+    const br = project(ALTAR.x + hw * 0.72, y1, ALTAR.z + hd);
+    if (!fl || !fr || !tl || !tr || !bl || !br) continue;
+    // top face
+    ctx.beginPath();
+    ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+    ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+    ctx.closePath();
+    ctx.fillStyle = fogMix('#5a4034', fog);
+    ctx.fill();
+    // front face
+    ctx.beginPath();
+    ctx.moveTo(fl.x, fl.y); ctx.lineTo(fr.x, fr.y);
+    ctx.lineTo(tr.x, tr.y); ctx.lineTo(tl.x, tl.y);
+    ctx.closePath();
+    ctx.fillStyle = fogMix('#38222e', fog);
+    ctx.fill();
+    // rim light
+    ctx.strokeStyle = `rgba(255,200,140,${(0.3 + 0.5 * warm) * (1 - fog * 0.6)})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+    ctx.stroke();
+  }
+
+  // gem sockets on the second tier's front face
+  for (let i = 0; i < 10; i++) {
+    const sx = ALTAR.x - 12.6 + i * 2.8;
+    const pr = project(sx, 4, ALTAR.z - tiers[1] * 0.85);
+    if (!pr) continue;
+    const r = Math.max(1.4, 0.5 * pr.s);
+    const on = i < litCount;
+    ctx.save();
+    ctx.translate(pr.x, pr.y);
+    ctx.rotate(Math.PI / 4);
+    if (on) {
+      ctx.shadowColor = 'rgba(255,210,130,0.95)';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = `rgba(255,217,143,${0.75 + 0.25 * Math.sin(time * 2 + i)})`;
+    } else {
+      ctx.fillStyle = 'rgba(60,36,52,0.9)';
+    }
+    ctx.fillRect(-r * 0.5, -r * 0.5, r, r);
+    ctx.restore();
+  }
+
+  // crystal at the apex
+  const apexY = 4 * TH + 1.2;
+  const ap = project(ALTAR.x, apexY, ALTAR.z);
+  if (ap) {
+    const glow = 0.35 + 0.6 * warm + 0.1 * Math.sin(time * 2.2);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const cg = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, 6 * ap.s);
+    cg.addColorStop(0, `rgba(255,226,160,${glow})`);
+    cg.addColorStop(1, 'rgba(255,226,160,0)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(ap.x - 6 * ap.s, ap.y - 6 * ap.s, 12 * ap.s, 12 * ap.s);
+    // the guiding light pillar — visible over the walls from anywhere
+    const top = project(ALTAR.x, apexY + 42, ALTAR.z);
+    const bw = 1.3 * ap.s;
+    const bg = ctx.createLinearGradient(0, ap.y, 0, top ? top.y : ap.y - 40 * ap.s);
+    bg.addColorStop(0, `rgba(255,214,150,${0.3 + 0.45 * warm})`);
+    bg.addColorStop(1, 'rgba(255,214,150,0)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(ap.x - bw, (top ? top.y : ap.y - 40 * ap.s), bw * 2, ap.y - (top ? top.y : ap.y - 40 * ap.s));
+    ctx.restore();
+    ctx.fillStyle = '#ffe2a0';
+    ctx.beginPath();
+    ctx.moveTo(ap.x, ap.y - 1.1 * ap.s);
+    ctx.lineTo(ap.x + 0.6 * ap.s, ap.y);
+    ctx.lineTo(ap.x, ap.y + 1.1 * ap.s);
+    ctx.lineTo(ap.x - 0.6 * ap.s, ap.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// a glowing instrument artifact (or one flying home to the altar)
+function drawTreasure(t) {
+  let x = t.x, z = t.z, k = t.found ? t.flyK : 0, arc = 0;
+  if (t.found) {
+    if (k >= 1) return;                       // seated in its socket now
+    x = lerp(t.x, ALTAR.x, k * k);
+    z = lerp(t.z, ALTAR.z - 13, k * k);
+    arc = Math.sin(k * Math.PI) * 7;
+  }
+  const gy0 = groundH(x, z);
+  const bob = t.found ? 0 : Math.sin(time * 1.7 + t.ph) * 0.25;
+  const y = gy0 + 1.35 + bob + arc;
+  const pr = project(x, y, z);
+  if (!pr || pr.x < -80 || pr.x > W + 80) return;
+  const s = pr.s, px = pr.x, py = pr.y;
+  const fog = clamp(pr.vz / 280, 0, 1);
+
+  if (!t.found) drawShadow(x, z, 0.8);
+
+  // vertical light beam
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const beamA = t.found ? 0.5 : 0.16 + 0.08 * Math.sin(time * 2.4 + t.ph);
+  const bw = 0.55 * s;
+  const bg = ctx.createLinearGradient(0, py - 26 * s, 0, py);
+  bg.addColorStop(0, 'rgba(255,215,150,0)');
+  bg.addColorStop(1, `rgba(255,215,150,${beamA})`);
+  ctx.fillStyle = bg;
+  ctx.fillRect(px - bw, py - 26 * s, bw * 2, 26 * s);
+
+  // glowing orb
+  const R = (0.85 + 0.12 * Math.sin(time * 3 + t.ph)) * s;
+  const og = ctx.createRadialGradient(px, py, 0, px, py, R * 2.4);
+  const hue = t.found ? '255,222,160' : '255,205,150';
+  og.addColorStop(0, `rgba(${hue},0.95)`);
+  og.addColorStop(0.4, `rgba(${hue},0.5)`);
+  og.addColorStop(1, `rgba(${hue},0)`);
+  ctx.fillStyle = og;
+  ctx.fillRect(px - R * 2.4, py - R * 2.4, R * 4.8, R * 4.8);
+  ctx.restore();
+
+  // instrument glyph inside
+  ctx.strokeStyle = `rgba(70,32,48,${0.85 * (1 - fog)})`;
+  ctx.lineWidth = Math.max(1, 0.06 * s);
+  const u = s * 0.028;                        // glyph unit
+  ctx.save();
+  ctx.translate(px, py);
+  switch (t.i) {
+    case 0:  // lyre
+      ctx.beginPath();
+      ctx.moveTo(-7 * u, 8 * u); ctx.quadraticCurveTo(-9 * u, -8 * u, 0, -9 * u);
+      ctx.quadraticCurveTo(9 * u, -8 * u, 7 * u, 8 * u); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-4 * u, 6 * u); ctx.lineTo(-4 * u, -6 * u);
+      ctx.moveTo(0, 6 * u); ctx.lineTo(0, -7 * u);
+      ctx.moveTo(4 * u, 6 * u); ctx.lineTo(4 * u, -6 * u);
+      ctx.stroke();
+      break;
+    case 1:  // flute
+      ctx.beginPath(); ctx.moveTo(-9 * u, 0); ctx.lineTo(9 * u, 0); ctx.stroke();
+      ctx.beginPath();
+      for (const hx of [-4, -1, 2, 5]) { ctx.moveTo(hx * u, -2.4 * u); ctx.lineTo(hx * u, 2.4 * u); }
+      ctx.stroke();
+      break;
+    case 2: case 8:  // drums
+      ctx.beginPath(); ctx.ellipse(0, -3 * u, 8 * u, 3 * u, 0, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-8 * u, -3 * u); ctx.lineTo(-6 * u, 7 * u);
+      ctx.moveTo(8 * u, -3 * u); ctx.lineTo(6 * u, 7 * u);
+      ctx.moveTo(-6 * u, 7 * u); ctx.lineTo(6 * u, 7 * u); ctx.stroke();
+      break;
+    case 3:  // oud
+      ctx.beginPath(); ctx.ellipse(0, 3 * u, 6 * u, 5 * u, 0, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(3 * u, -1 * u); ctx.lineTo(8 * u, -8 * u); ctx.stroke();
+      break;
+    case 4:  // bells
+      ctx.beginPath(); ctx.moveTo(-9 * u, -2 * u); ctx.lineTo(9 * u, -2 * u); ctx.stroke();
+      for (const bx of [-5, 0, 5]) {
+        ctx.beginPath();
+        ctx.moveTo(bx * u, -2 * u); ctx.lineTo(bx * u, 2 * u);
+        ctx.moveTo(bx * u - 2.5 * u, 5 * u); ctx.lineTo(bx * u + 2.5 * u, 5 * u);
+        ctx.stroke();
+      }
+      break;
+    case 5:  // harp
+      ctx.beginPath();
+      ctx.moveTo(-6 * u, 9 * u); ctx.quadraticCurveTo(-10 * u, -9 * u, 6 * u, -9 * u);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-4 * u, 7 * u); ctx.lineTo(-4 * u, -7 * u);
+      ctx.moveTo(0, 7 * u); ctx.lineTo(0, -8 * u);
+      ctx.moveTo(4 * u, 7 * u); ctx.lineTo(4 * u, -8 * u);
+      ctx.stroke();
+      break;
+    case 6:  // shaker
+      ctx.beginPath();
+      ctx.moveTo(0, -8 * u); ctx.lineTo(5 * u, 0); ctx.lineTo(0, 8 * u); ctx.lineTo(-5 * u, 0);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -4 * u); ctx.lineTo(0, 4 * u); ctx.stroke();
+      break;
+    case 7:  // horn
+      ctx.beginPath();
+      ctx.moveTo(-8 * u, 6 * u);
+      ctx.quadraticCurveTo(-10 * u, -7 * u, 7 * u, -6 * u);
+      ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(8 * u, -6 * u, 2.6 * u, 2 * u, 0.5, 0, TAU); ctx.stroke();
+      break;
+    case 9:  // choir stone
+      ctx.beginPath();
+      ctx.moveTo(0, -9 * u); ctx.lineTo(5 * u, 3 * u); ctx.lineTo(2 * u, 9 * u);
+      ctx.lineTo(-2 * u, 9 * u); ctx.lineTo(-5 * u, 3 * u);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, 0, 2 * u, 4 * u, 0, 0, TAU); ctx.stroke();
+      break;
+  }
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const gy0 = groundH(p.x, p.z);
+  const pr = project(p.x, gy0, p.z);
+  if (!pr) return;
+  const s = pr.s, x = pr.x, gy = pr.y;
+  const hPx = 1.8 * s;
+  const moving = p.moving;
+  const bob = moving ? Math.sin(time * 9) * 0.045 * hPx : Math.sin(time * 2.2) * 0.02 * hPx;
+  const topY = gy - hPx + bob;
+  const singK = (time - p.singT < 0.7 && time - p.singT > 0) ? 1 - (time - p.singT) / 0.7 : 0;
+  const lean = clamp(p.vx / SPD, -1, 1) * 0.09;
+
+  // shadow
+  ctx.fillStyle = 'rgba(20,8,16,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(x, gy + 2, 0.62 * hPx, 0.14 * hPx, 0, 0, TAU);
+  ctx.fill();
+
+  // scarf trailing toward the viewer
+  const nx = x + lean * hPx * 0.3, ny = topY + 0.22 * hPx;
+  const scarf = () => {
+    ctx.beginPath();
+    ctx.moveTo(nx, ny);
+    for (let i = 1; i <= 12; i++) {
+      const q = i / 12;
+      const tt = time * 6 - i * 0.5;
+      const px = nx + Math.sin(tt) * i * 0.9 + Math.sin(time * 1.3) * 2 + lean * i * 1.1;
+      let py = ny + q * (0.75 + Math.abs(Math.sin(tt * 0.8)) * 0.3) * hPx;
+      py -= singK * i * 1.9;
+      ctx.lineTo(px, py);
+    }
+  };
+  ctx.lineCap = 'round';
+  scarf(); ctx.strokeStyle = '#d99a4e'; ctx.lineWidth = Math.max(2.5, 0.09 * hPx); ctx.stroke();
+  scarf(); ctx.strokeStyle = '#f2c069'; ctx.lineWidth = Math.max(1.2, 0.04 * hPx); ctx.stroke();
+
+  // robe
+  ctx.save();
+  ctx.translate(x, topY + hPx);
+  ctx.rotate(lean * 0.5);
+  const fl = Math.sin(time * 9) * (moving ? 0.045 : 0.015) * hPx;
+  const grd = ctx.createLinearGradient(0, -hPx, 0, 0);
+  grd.addColorStop(0, '#a23552');
+  grd.addColorStop(1, '#54192b');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.moveTo(0, -hPx + 0.06 * hPx);
+  ctx.bezierCurveTo(-0.34 * hPx, -hPx * 0.9, -0.4 * hPx, -hPx * 0.35, -0.42 * hPx + fl, -0.02 * hPx);
+  ctx.lineTo(-0.18 * hPx + fl, 0.02 * hPx);
+  ctx.lineTo(0, 0);
+  ctx.lineTo(0.18 * hPx + fl, 0.02 * hPx);
+  ctx.lineTo(0.42 * hPx + fl, -0.02 * hPx);
+  ctx.bezierCurveTo(0.4 * hPx, -hPx * 0.35, 0.34 * hPx, -hPx * 0.9, 0, -hPx + 0.06 * hPx);
+  ctx.closePath();
+  ctx.fill();
+  // gold hem
+  ctx.strokeStyle = 'rgba(240,190,110,0.85)';
+  ctx.lineWidth = Math.max(1, 0.035 * hPx);
+  ctx.beginPath();
+  ctx.moveTo(-0.42 * hPx + fl, -0.015 * hPx);
+  ctx.quadraticCurveTo(0, 0.05 * hPx, 0.42 * hPx + fl, -0.015 * hPx);
+  ctx.stroke();
+  // hood
+  ctx.fillStyle = '#8d2c48';
+  ctx.beginPath();
+  ctx.ellipse(0, -hPx * 0.86, 0.27 * hPx, 0.3 * hPx, 0, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,214,150,0.4)';
+  ctx.lineWidth = Math.max(1, 0.025 * hPx);
+  ctx.beginPath();
+  ctx.ellipse(0, -hPx * 0.86, 0.27 * hPx, 0.3 * hPx, 0, Math.PI * 1.15, TAU - 0.1);
+  ctx.stroke();
+  ctx.restore();
+
+  // sing aura
+  if (singK > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const ag = ctx.createRadialGradient(x, topY + hPx * 0.45, 0, x, topY + hPx * 0.45, hPx * 0.85);
+    ag.addColorStop(0, `rgba(255,220,150,${0.3 * singK})`);
+    ag.addColorStop(1, 'rgba(255,220,150,0)');
+    ctx.fillStyle = ag;
+    ctx.fillRect(x - hPx, topY - hPx * 0.4, hPx * 2, hPx * 1.8);
+    ctx.restore();
+  }
+}
+
+function drawParticles() {
+  ctx.save();
+  for (const q of particles) {
+    const pr = project(q.x, q.y, q.z);
+    if (!pr) continue;
+    const a = clamp(q.life / q.life0, 0, 1);
+    if (q.kind === 'puff') {
+      ctx.fillStyle = `rgba(214,158,124,${a * 0.3})`;
+      ctx.beginPath(); ctx.arc(pr.x, pr.y, q.size * pr.s * 2.4, 0, TAU); ctx.fill();
+    } else if (q.kind === 'spark') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255,216,150,${a * 0.85})`;
+      ctx.beginPath(); ctx.arc(pr.x, pr.y, Math.max(0.8, q.size * pr.s), 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    } else {  // note
+      ctx.globalCompositeOperation = 'lighter';
+      const r = Math.max(1, q.size * pr.s * 0.35);
+      ctx.fillStyle = `rgba(255,226,160,${a * 0.8})`;
+      ctx.beginPath(); ctx.arc(pr.x, pr.y, r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(255,226,160,${a * 0.3})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pr.x, pr.y);
+      ctx.quadraticCurveTo(pr.x + r * 2, pr.y - r * 3, pr.x + r, pr.y - r * 5);
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  }
+  ctx.restore();
+}
+
+function drawWaves() {
+  ctx.save();
+  for (const w of waves) {
+    const k = 1 - w.r / w.max;
+    ctx.strokeStyle = w.faint ? `rgba(214,160,255,${0.3 * k})` : `rgba(255,214,150,${0.5 * k})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    let first = true;
+    for (let i = 0; i <= 26; i++) {
+      const a = i / 26 * TAU;
+      const pr = project(w.x + Math.cos(a) * w.r, groundH(w.x, w.z) + 0.15, w.z + Math.sin(a) * w.r);
+      if (!pr) { first = true; continue; }
+      if (first) { ctx.moveTo(pr.x, pr.y); first = false; }
+      else ctx.lineTo(pr.x, pr.y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawDust() {
+  ctx.save();
+  for (const d of dusts) {
+    const pr = project(cam.x + d.x, cam.yh - 1 + d.y, cam.z + d.z);
+    if (!pr) continue;
+    ctx.fillStyle = `rgba(255,220,170,${0.05 + 0.05 * Math.sin(time + d.ph)})`;
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, Math.max(0.6, d.s * pr.s), 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// small compass: points toward the nearest unfound treasure
+function drawCompass() {
+  if (litCount >= 10) return;
+  let best = null, bestD = 1e9;
+  for (const t of treasures) {
+    if (t.found) continue;
+    const d = Math.hypot(t.x - p.x, t.z - p.z);
+    if (d < bestD) { bestD = d; best = t; }
+  }
+  if (!best) return;
+  const cx = W * 0.5, cy = H - 86;
+  const rel = Math.atan2(best.x - p.x, best.z - p.z) - yaw;
+  const a = 0.35 + 0.25 * Math.sin(time * 2.5);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rel);
+  ctx.fillStyle = `rgba(255,224,160,${a * 0.9})`;
+  ctx.beginPath();
+  ctx.moveTo(0, -13); ctx.lineTo(6, 6); ctx.lineTo(0, 2); ctx.lineTo(-6, 6);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = `rgba(255,224,160,${a * 0.9})`;
+  ctx.font = '11px Georgia';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${Math.round(bestD)} paces`, cx, cy + 26);
+}
+
+// ---------------- master draw ----------------
+function draw() {
+  drawSky();
+  drawStars();
+  drawSun();
+  drawGroundBase();
+
+  // depth-sorted scene: distant dunes, walls, ruins, altar, artifacts (far -> near)
+  const items = [];
+  for (let k = 5; k <= 8; k++) {
+    const Z = k * 100;
+    if (Z - cam.z < 260) continue;
+    items.push({ z: (Z - cam.z) / Math.max(Math.cos(yaw), 0.3), kind: 'ridge', k });
+  }
+  for (const w of WALLS) {
+    const z = wallSortZ(w);
+    if (z < 900) items.push({ z, kind: 'wall', o: w });
+  }
+  for (const lm of landmarks) {
+    const pr = project(lm.x, groundH(lm.x, lm.z), lm.z);
+    if (pr && pr.x > -160 && pr.x < W + 160 && pr.vz < 260) items.push({ z: pr.vz, kind: 'lm', o: lm });
+  }
+  {
+    const pr = project(ALTAR.x, groundH(ALTAR.x, ALTAR.z), ALTAR.z);
+    if (pr) items.push({ z: pr.vz, kind: 'altar' });
+  }
+  for (const t of treasures) {
+    if (t.found && t.flyK >= 1) continue;
+    const pr = project(t.x, groundH(t.x, t.z), t.z);
+    if (pr && pr.x > -140 && pr.x < W + 140 && pr.vz < 300) items.push({ z: pr.vz, kind: 't', o: t });
+  }
+  items.sort((a, b) => b.z - a.z);
+  for (const it of items) {
+    if (it.kind === 'ridge') drawRidge(it.k);
+    else if (it.kind === 'wall') drawWall(it.o);
+    else if (it.kind === 'lm') drawLandmark(it.o);
+    else if (it.kind === 'altar') drawAltar();
+    else drawTreasure(it.o);
+  }
+
+  // the traveler draws last so nothing can ever swallow them
+  drawPlayer();
+
+  drawWaves();
+  drawParticles();
+  drawDust();
+  drawCompass();
+
+  // post: vignette + grain
+  ctx.fillStyle = vigGrad;
+  ctx.fillRect(0, 0, W, H);
+  if (!grainPat) grainPat = ctx.createPattern(grain, 'repeat');
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = grainPat;
+  ctx.translate((time * 37) % 140 | 0, (time * 61) % 140 | 0);
+  ctx.fillRect(-140, -140, W + 280, H + 280);
+  ctx.restore();
+}
+
+// ---------------- main loop ----------------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  time += dt;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------------- debug hook ----------------
+window.SS = () => ({
+  started, got: litCount, px: +p.x.toFixed(1), pz: +p.z.toFixed(1),
+  yaw: +yaw.toFixed(2), camx: +cam.x.toFixed(1), camz: +cam.z.toFixed(1),
+  victory: victoryT0, audio: A.ctx ? A.ctx.state : 'none'
+});
+window.BOUNDS = { x: XMAX, zl: ZMIN, zh: ZMAX, ax: ALTAR.x, az: ALTAR.z };
+</script>
+</body>
+</html>
