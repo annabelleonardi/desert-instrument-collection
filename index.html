@@ -419,39 +419,57 @@ const A = {
   },
 
   // ---------------- the traveler's hum (trial voice) ----------------
-  // one sustained tone, pitched live each frame: hold longer and it rises,
-  // release and it falls. soft octave shimmer + breath vibrato.
+  // one sustained tone, pitched live each frame: hold longer and it steps up
+  // the canyon's scale, release and it settles back down. voiced like closed
+  // lips: weak partials, a whisper of breath, vibrato that fades in late.
   humStart() {
     if (!this.ctx || this.ctx.state !== 'running' || this._hum) return;
     const c = this.ctx, t = c.currentTime;
     const o1 = c.createOscillator(); o1.type = 'sine';
     const o2 = c.createOscillator(); o2.type = 'sine';
-    const g2 = c.createGain(); g2.gain.value = 0.15;
-    const vib = c.createOscillator(); vib.frequency.value = 5.0;
-    const vg = c.createGain(); vg.gain.value = 4;          // cents of breath
-    vib.connect(vg); vg.connect(o1.detune); vg.connect(o2.detune);
+    const o3 = c.createOscillator(); o3.type = 'triangle';
+    const g2 = c.createGain(); g2.gain.value = 0.11;       // weak 2nd partial,
+    const g3 = c.createGain(); g3.gain.value = 0.05;       // weaker 3rd — a hum, not a flute
+    // vibrato fades in late, like breath support; a slow wobble keeps it human
+    const vib = c.createOscillator(); vib.frequency.value = 4.6;
+    const vg = c.createGain(); vg.gain.setValueAtTime(0, t);
+    vg.gain.linearRampToValueAtTime(2.5, t + 0.7);         // cents, arriving late
+    const wob = c.createOscillator(); wob.frequency.value = 0.6;
+    const wg = c.createGain(); wg.gain.value = 4;          // slow natural drift
+    vib.connect(vg); wob.connect(wg);
+    vg.connect(o1.detune); vg.connect(o2.detune); vg.connect(o3.detune);
+    wg.connect(o1.detune); wg.connect(o2.detune); wg.connect(o3.detune);
+    // a whisper of breath through almost-closed lips
+    const n = c.createBufferSource();
+    n.buffer = this.noiseBuf; n.loop = true;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = 640; bp.Q.value = 1.2;
+    const ng = c.createGain(); ng.gain.value = 0.012;
     const lp = c.createBiquadFilter(); lp.type = 'lowpass';
-    lp.frequency.value = 1150; lp.Q.value = 0.5;           // round it like closed lips
+    lp.frequency.value = 820; lp.Q.value = 0.7;            // warm, dark, round
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.075, t + 0.16);
-    o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(lp);
+    g.gain.linearRampToValueAtTime(0.08, t + 0.22);
+    o1.connect(g); o2.connect(g2); g2.connect(g); o3.connect(g3); g3.connect(g);
+    n.connect(bp); bp.connect(ng); ng.connect(g); g.connect(lp);
     this.route(lp, 0.85, 0.4);
-    o1.start(t); o2.start(t); vib.start(t);
-    this._hum = { o1, o2, g, vib };
+    o1.start(t); o2.start(t); o3.start(t); vib.start(t); wob.start(t); n.start(t);
+    this._hum = { o1, o2, o3, g, vib, wob, n };
   },
   humSet(midi) {
     if (!this._hum) return;
     const t = this.ctx.currentTime, f = midiF(midi);
-    this._hum.o1.frequency.setTargetAtTime(f, t, 0.045);
-    this._hum.o2.frequency.setTargetAtTime(f * 2, t, 0.045);
+    this._hum.o1.frequency.setTargetAtTime(f, t, 0.06);    // slides into each
+    this._hum.o2.frequency.setTargetAtTime(f * 2, t, 0.06); // note like a person
+    this._hum.o3.frequency.setTargetAtTime(f, t, 0.06);
   },
   humStop() {
     if (!this._hum) return;
     const h = this._hum, t = this.ctx.currentTime;
     h.g.gain.cancelScheduledValues(t);
     h.g.gain.setTargetAtTime(0.0001, t, 0.09);
-    h.o1.stop(t + 0.5); h.o2.stop(t + 0.5); h.vib.stop(t + 0.5);
+    h.o1.stop(t + 0.5); h.o2.stop(t + 0.5); h.o3.stop(t + 0.5);
+    h.vib.stop(t + 0.5); h.wob.stop(t + 0.5); h.n.stop(t + 0.5);
     this._hum = null;
   },
 
@@ -675,19 +693,22 @@ const GLYPHS = ['\u266A', '\u266B', '\u25CF', '\u25C8', '\u2726', '\u274B', '\u2
 // longer = higher, release = fall). when your pitch meets the note it asks for,
 // it harmonizes back and the sand around it begins to sing. sustained harmony
 // wakes the voice — there is no fail state, only resonance and its absence.
+// the drums ask differently: they keep a heartbeat, and you knock on it —
+// tap SPACE with the pulse until the skin remembers your hand.
 // one verb per voice, in wander order:
 const VERBS = ['pitch',      // 0 lyre        — find the note
                'drift',      // 1 flute       — match a moving target
-               'direction',  // 2 frame drum  — the hum calls from one side; turn to it
+               'beat',       // 2 frame drum  — the drum keeps a heartbeat; tap with it
                'distance',   // 3 oud         — your hum sharpens as you near; stop where it locks
                'rhythm',     // 4 wind bells  — breathe with the pulse, rest between
                'harmony',    // 5 reed harp   — two notes at once; find the lower root
                'silence',    // 6 coin shaker — still and quiet, or it hushes
                'timing',     // 7 ram's horn  — silent until the wind peaks; sing into it
-               'polyphony',  // 8 deep drum   — two voices hum; the lower one is true
+               'deepbeat',   // 8 deep drum   — two hearts sound; tap with the deeper one
                'chord'];     // 9 choir stone — the final exam: find the root of the chord
 const TRIAL = {
-  tol: 2,                        // semitones of "in tune" (octave-free for echo voices)
+  tol: 2.2,                      // semitones of "in tune" (octave-free for echo voices)
+  snap: 0.95,                    // scale magnet: the held hum snaps onto the canyon's notes
   hold: 4,                       // seconds of sustained harmony the voice needs
   humBase: 52,                   // the traveler's hum climbs one octave (E3..E4) —
                                  // E sits outside the pentatonic voices, so rest
@@ -695,12 +716,15 @@ const TRIAL = {
   riseT: 1.6, fallT: 0.75,       // breath in / breath out of the pitch glide
   driftAmp: 1.0, driftT: 8,      // flute: the wind's target drifts ±1 st over 8s
   hornAmp: 3, hornT: 4,          // horn: the wind swells 3 st, rising only in silence
-  faceTol: 0.7,                  // drum: radians off-bearing before the trial listens
   distRef: 14, distK: 0.55,      // oud: sweet radius (units) and semitones per unit
   distRoot: 50,                  // oud: the resting tone (D3)
   pulseNote: 74,                 // bells: the one note the chime breathes on
   pulses: [0, 1.5, 3, 4.5, 6],   // bells: pulse grid in beats over the 8-beat bar
   pulseW: 0.75,                  // bells: width of each pulse, in beats
+  beatWin: 0.22,                 // drums: tap window around each heartbeat, seconds
+  beatGain: 0.85,                // drums: harmony gathered per on-beat tap
+  beatDecay: 0.24,               // drums: harmony that drains each second off the beat
+  deepEvery: 2,                  // deep drum: its heart lands every 2nd beat (half-time)
   lockT: 0.8, cycles: 3,         // horn: hold-to-lock time; cycles to win
   trueMidi: 50, lureMidi: 57     // deep drum: the true voice (D) and the lure (A)
 };
@@ -935,15 +959,15 @@ function baseHint() {
 // (L() at call time, so a language switch on the title screen carries over)
 function verbHint(v) {
   switch (v) {
-    case 'pitch': return L('hold SPACE \u2014 your hum rises \u00b7 release \u2014 it falls', '按住 空格 — 声音升起 · 松开 — 声音落下');
+    case 'pitch': return L('hold SPACE \u2014 your hum steps up the scale \u00b7 release \u2014 it settles back', '按住 空格 — 声音逐级走上音阶 · 松开 — 缓缓落回');
+    case 'beat': return L('the drum keeps a heartbeat \u2014 tap SPACE with each beat', '鼓保持着自己的心跳——跟着每一拍敲下 空格');
     case 'drift': return L('hold SPACE and feather it \u2014 the wind drifts, ride with it', '按住并微调 空格 — 风会漂移，随它起伏');
-    case 'direction': return L('it speaks in hits from one side \u2014 turn until they sit centered, then sing', '鼓点从一侧响起——转到鼓点居中，再歌唱');
     case 'distance': return L('the oud is fretless \u2014 near, your hum sharpens; far, it slackens \u2014 stop where it rings true', '乌德无品——近则声升，远则声落——在琴音真切处停下');
     case 'rhythm': return L('the chime breathes in pulses \u2014 hold SPACE with each, rest between', '风铃随节拍呼吸——随每一次脉动按住 空格，间隙里歇息');
     case 'harmony': return L('two notes at once \u2014 find the lower one, the root beneath', '两个音同时响起——找到较低的那一个，底下的根音');
     case 'silence': return L('stand still and the shimmer settles \u2014 the tone beneath it rings for you', '静立，碎响落定——底下的音色便为你响起');
     case 'timing': return L('stay silent, let the wind rise \u2014 sing into its peak and hold', '先静默，任风升起——在风势顶点处歌唱并稳住');
-    case 'polyphony': return L('a doum and a tak sound from afar \u2014 follow the deeper one, sing it home', '远处传来"咚"与"嗒"——追随更深沉的那一声，把它唱回家');
+    case 'deepbeat': return L('two hearts sound \u2014 tap with the deeper one, the one from the stone', '两颗心跳同时响起——跟着更深沉、来自石中的那颗');
     case 'chord': return L('a chord \u2014 find the root that gathers the rest', '一声和弦——找到拢住其余的根音');
   }
   return '';
@@ -1062,9 +1086,15 @@ addEventListener('keydown', e => {
   if (e.repeat) return;
   if (e.code === 'Space') {
     // while a trial sings with you, Space IS the hum — held, not tapped.
+    // the drums ask for taps instead: each press knocks on their heartbeat.
     // before the altar, Space is the conducting tap; after the chord fades,
     // it is the final note — the ending answers to the same verb
-    if (!mg) sing();
+    if (mg) {
+      if ((mg.verb === 'beat' || mg.verb === 'deepbeat') && mg.phase === 'commune') {
+        mg.tapReq = true;
+        mg.tapAt = (A.ctx && A.ctx.state === 'running') ? A.ctx.currentTime : time;
+      }
+    } else sing();
   }
   if (e.code === 'Escape' && mg && mg.phase !== 'win') {
     // no words — the voice simply stops answering, and the sand settles
@@ -1206,15 +1236,12 @@ function startTrial(t) {
     swPh: -0.25, wasHold: false,
     cycles: 0, lockAcc: 0, decoyT: 0, rootHintT: 0,
     lastRespT: 0, lastCallT: 0, lastPullT: 0, lastHumT: 0,
+    tapReq: false, tapAt: 0, lastBeatK: -1, beatGlow: 0,
+    noteT: 0, hm: 0, holdT: 0,
     lure: null, yawTarget: Math.atan2(t.x - p.x, t.z - p.z)
   };
-  if (verb === 'direction') {
-    // begin facing away — the panned call itself must lead the turn
-    const b = normAng(mg.yawTarget - yaw);
-    yaw -= Math.sign(b || 1) * 1.1;
-  }
-  if (verb === 'polyphony') {
-    // a phantom voice hums the fifth away from the truth, across the sand
+  if (verb === 'deepbeat') {
+    // a phantom heart taps its flashier beat across the sand — a lie with a rhythm
     mg.lure = {
       x: clamp(t.x + (t.x <= 0 ? 32 : -32), -102, 102),
       z: clamp(t.z + 10, ZMIN + 12, ZMAX - 12)
@@ -1225,8 +1252,17 @@ function startTrial(t) {
 
 // pitch-class distance — octave-free listening (echo voices)
 const pcDist = (a, b) => { const d = Math.abs(a - b) % 12; return Math.min(d, 12 - d); };
-// bearing wrapped to (-PI, PI] — how far the body must still turn
-const normAng = a => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
+// fold a note into the hum's one-octave window — display-only, for the ladder
+// (matching stays octave-free; the ladder just shows where to meet the note)
+const foldOct = m => { while (m < 52) m += 12; while (m >= 64) m -= 12; return m; };
+// the canyon's pentatonic — the only notes a held hum can land on (F G A C D).
+// the resting hum (E, unsnapped) sits a whole step below F, so silence is
+// always "away"; holding walks the scale, and parking on a note is the match
+const SCALE = [53, 55, 57, 60, 62];
+const snapScale = m => {
+  for (const n of SCALE) if (Math.abs(m - n) < TRIAL.snap) return n;
+  return m;
+};
 
 // one long exchange of listening and singing — no timers, no fail state
 function updateTrial(dt) {
@@ -1236,8 +1272,8 @@ function updateTrial(dt) {
   const el = time - mg.t0;
 
   if (mg.phase === 'intro') {
-    // gently turn toward the voice — except the drum, whose lesson IS the turn
-    if (mg.verb !== 'direction') {
+    // gently turn toward the voice
+    {
       const dy = mg.yawTarget - yaw;
       yaw += dy * 2.0 * dt;
     }
@@ -1270,8 +1306,8 @@ function updateTrial(dt) {
         A._sp = sp;
         [50, 53, 57, 62].forEach((m, k) => A.vChoir(midiF(m), k * 0.04, 3.2, 0.05, sp.pan));
         A._sp = null;
-      } else if (mg.verb === 'polyphony' && mg.lure) {
-        // a doum and a tak: the true voice booms low from the stone, the
+      } else if (mg.verb === 'deepbeat' && mg.lure) {
+        // a doum and a tak: the true heart booms low from the stone, the
         // phantom taps high from the sand — two skins of one lie
         const lsp = A.panFor(mg.lure.x, mg.lure.z);
         A._sp = sp; A.vNote('drumDeep', midiF(TRIAL.trueMidi), 0, 1.6, 0.6, sp.pan); A._sp = null;
@@ -1293,24 +1329,29 @@ function updateCommune(dt) {
   const inst = INSTRUMENTS[mg.ti];
   const verb = mg.verb;
   const holding = !!keys.Space;
+  const isBeat = verb === 'beat' || verb === 'deepbeat';
   const d = Math.hypot(t.x - p.x, t.z - p.z);
   const sp = A.panFor(t.x, t.z);
   const movingNow = Math.hypot(p.vx, p.vz) > 1.2;
   const audioOn = A.ctx && A.ctx.state === 'running';
 
   // ---- the traveler's hum ----
+  // the drums keep time instead of pitch: Space knocks, it does not hum.
   // the oud's lesson is distance itself: near = sharp, far = flat
-  let hm;
-  if (verb === 'distance') {
-    hm = TRIAL.distRoot + clamp((TRIAL.distRef - d) * TRIAL.distK, -9, 9);
-  } else {
-    mg.climb = clamp(mg.climb + (holding ? dt / TRIAL.riseT : -dt / TRIAL.fallT), 0, 1);
-    hm = TRIAL.humBase + 12 * mg.climb;
+  let hm = 0;
+  if (!isBeat) {
+    if (verb === 'distance') {
+      hm = TRIAL.distRoot + clamp((TRIAL.distRef - d) * TRIAL.distK, -9, 9);
+    } else {
+      mg.climb = clamp(mg.climb + (holding ? dt / TRIAL.riseT : -dt / TRIAL.fallT), 0, 1);
+      hm = snapScale(TRIAL.humBase + 12 * mg.climb);   // the magnet: a held hum
+    }                                                  // lands on real notes
   }
+  mg.hm = hm;
 
   // ---- the target each voice asks for, and how far you sit from it ----
   let dist = 99, targetM = mg.contour[0];
-  let face = 1, inPulse = true, windN = 0, root = true, nearerTrue = true, lureGain = 1;
+  let inPulse = true, windN = 0, root = true, lureGain = 1;
   switch (verb) {
     case 'drift': {
       mg.swPh += dt / TRIAL.driftT;               // the wind drifts whether you sing or not
@@ -1328,10 +1369,9 @@ function updateCommune(dt) {
       dist = Math.abs(hm - targetM);
       break;
     }
-    case 'direction': {
-      const b = normAng(Math.atan2(t.x - p.x, t.z - p.z) - yaw);
-      face = 1 - clamp(Math.abs(b) / TRIAL.faceTol, 0, 1);
-      for (const m of mg.contour) { const dd = pcDist(hm, m); if (dd < dist) { dist = dd; targetM = m; } }
+    case 'beat': case 'deepbeat': {
+      // the lesson is the pulse, not the pitch — progress drives the visuals
+      dist = 0; targetM = verb === 'deepbeat' ? TRIAL.trueMidi : 45;
       break;
     }
     case 'distance': {
@@ -1341,10 +1381,14 @@ function updateCommune(dt) {
     }
     case 'rhythm': {
       // one dimension only: breathe with the chime. the pulse itself is the
-      // note — asking for a pitch class too made the first lesson two-handed
+      // note — asking for a pitch class too made the first lesson two-handed.
+      // and it really asks for BREATH: clamp the button through the rests and
+      // the chime hushes — holding is not breathing
       targetM = TRIAL.pulseNote;
       const beat = audioOn ? (A.ctx.currentTime / SPB) % 8 : (time / SPB) % 8;
       inPulse = TRIAL.pulses.some(p0 => beat >= p0 && beat < p0 + TRIAL.pulseW);
+      if (holding) mg.holdT += dt; else mg.holdT = 0;
+      if (mg.holdT > 1.1) inPulse = false;
       dist = inPulse ? 0 : 99;
       break;
     }
@@ -1359,14 +1403,6 @@ function updateCommune(dt) {
       dist = pcDist(hm, targetM);
       break;
     }
-    case 'polyphony': {
-      targetM = TRIAL.trueMidi;
-      dist = pcDist(hm, TRIAL.trueMidi);
-      const dlure = mg.lure ? Math.hypot(mg.lure.x - p.x, mg.lure.z - p.z) : 1e9;
-      nearerTrue = d <= dlure;
-      lureGain = clamp((dlure - 8) / 18, 0.12, 1);
-      break;
-    }
     case 'chord': {
       for (const m of [50, 53, 57, 62]) {
         const dd = pcDist(hm, m);
@@ -1379,23 +1415,55 @@ function updateCommune(dt) {
     }
   }
 
-  let q = 1 - clamp(dist / mg.tol, 0, 1);
-  // each voice tempers the match in its own way
-  if (verb === 'direction') q *= face;                          // sing TO it
-  if (!root && (verb === 'harmony' || verb === 'chord')) q = Math.min(q, 0.45);   // "almost right"
-  if (verb === 'polyphony' && !nearerTrue) q = 0;               // the lure owns you
-  if (verb === 'silence' && movingNow) q = Math.min(q, 0.3);    // steps scatter the tone
+  mg.noteT = verb === 'distance' ? targetM : foldOct(targetM);
+  let q = 0;
+  if (isBeat) {
+    q = clamp(mg.h / mg.hold, 0, 1);            // the rings read progress, not pitch
+  } else {
+    q = 1 - clamp(dist / mg.tol, 0, 1);
+    // each voice tempers the match in its own way
+    if (!root && (verb === 'harmony' || verb === 'chord')) q = Math.min(q, 0.45);   // "almost right"
+    if (verb === 'silence' && movingNow) q = Math.min(q, 0.3);    // steps scatter the tone
+  }
   mg.q = lerp(mg.q, q, 1 - Math.pow(0.002, dt));
 
-  // harmony gathers while you meet the voice, settles while you drift —
-  // silence never counts: only an actually sung, in-tune breath does
-  let good = holding && q > 0;
-  if (verb === 'direction') good = good && face > 0.5;
-  if (verb === 'rhythm') good = good && inPulse;
-  if (verb === 'timing') {
+  // harmony gathers only when you are ON a note of its song. the held hum
+  // snaps onto the canyon's scale, so "on the note" is a place you can stand;
+  // the resting hum (E, unsnapped) and the gaps between notes never match,
+  // and the decoy's capped q (0.45) never reaches the gather bar. the pulse
+  // of the bells IS the ask, so dist handles it for free
+  let good = holding && dist < 0.9 && q >= 0.5;
+  if (isBeat) {
+    // the drum keeps its heartbeat; you knock. on-beat taps land in the
+    // window and gather harmony; off-beat taps skiff the sand and gain nothing
+    mg.h = clamp(mg.h - TRIAL.beatDecay * dt, 0, mg.hold);
+    if (mg.tapReq) {
+      mg.tapReq = false;
+      const clock = audioOn ? A.ctx.currentTime : time;
+      const every = SPB * (verb === 'deepbeat' ? TRIAL.deepEvery : 1);
+      const k = Math.round(mg.tapAt / every);
+      if (Math.abs(mg.tapAt - k * every) <= TRIAL.beatWin) {
+        mg.h = clamp(mg.h + TRIAL.beatGain, 0, mg.hold);
+        mg.beatGlow = 1;
+        puff(p.x, p.z, 3);
+        A._sp = sp;
+        A.vNote(inst.synth, midiF(verb === 'deepbeat' ? TRIAL.trueMidi : 45), 0, 0.7, 0.85, sp.pan);
+        A._sp = null;
+        if (mg.pat === 2 && !mg.wasGood) {
+          mg.wasGood = true;
+          showHint(L('you feel its heart \u2014 stay with the beat', '你摸到它的心跳了——跟着节奏'), 5);
+        }
+      } else {
+        // off the heart — a dull thud, no harmony
+        A._sp = sp;
+        A.vNote(inst.synth, midiF(40), 0, 0.25, 0.14, sp.pan);
+        A._sp = null;
+      }
+    }
+  } else if (verb === 'timing') {
     // the horn counts in cycles, not seconds: three locked breaths win,
     // and a half-earned lock drains slowly rather than vanishing
-    good = holding && q > 0 && windN > 0.55;
+    good = holding && q >= 0.6 && windN > 0.55;
     mg.lockAcc = clamp(mg.lockAcc + (good ? dt : -dt * 0.6), 0, TRIAL.lockT);
     if (good && mg.lockAcc >= TRIAL.lockT) {
       mg.cycles++;
@@ -1418,8 +1486,11 @@ function updateCommune(dt) {
     }
     if (!mg.wasGood && !mg.nudged && time - mg.communeT0 > 10) {
       mg.nudged = true;
-      showHint(L('your hum rises while SPACE is held \u2014 release, and it falls',
-        '按住 空格 哼唱会升起——松开，声音便落下'), 8);
+      showHint(isBeat
+        ? L('listen for its heartbeat \u2014 tap SPACE with each beat',
+            '听它的心跳——跟着每一拍敲下 空格')
+        : L('your hum steps through the notes while SPACE is held \u2014 release, and it settles back',
+            '按住 空格，声音会逐级走上音符——松开，便缓缓落回'), 8);
     }
   }
   if (mg.h >= mg.hold) {                       // the voice remembers itself
@@ -1431,8 +1502,9 @@ function updateCommune(dt) {
   }
 
   // the voice responds in real time — harmonizing when met, pulling away when not
-  const panHard = verb === 'direction' ? clamp(Math.sin(normAng(Math.atan2(t.x - p.x, t.z - p.z) - yaw)) * 1.4, -1, 1) : sp.pan;
-  if (holding) {
+  if (isBeat) {
+    A.humStop(); A.harmStop();                   // the drums hear knocks, not hums
+  } else if (holding) {
     A.humStart(); A.humSet(hm);
     if (good) {
       // a sustained duet: the treasure sings with you and fades when you drift
@@ -1454,8 +1526,9 @@ function updateCommune(dt) {
       mg.lastCallT = time;
       if (!hushed) {
         switch (verb) {
-          case 'rhythm': case 'timing':
-            break;                                   // the chime pulses / the horn blows on their own clocks
+          case 'rhythm': case 'timing': case 'beat': case 'deepbeat':
+            break;                                   // the chime pulses, the horn blows,
+                                                     // the drums keep their own heartbeat
           case 'drift':
             A._sp = sp; A.vNote(inst.synth, midiF(targetM), 0, 1.2, 0.4, sp.pan); A._sp = null;
             break;
@@ -1473,17 +1546,6 @@ function updateCommune(dt) {
             [50, 53, 57, 62].forEach(m => A.vNote(inst.synth, midiF(m), 0, 1.6, 0.16, sp.pan));
             A._sp = null;
             break;
-          case 'polyphony':
-            A._sp = sp; A.vNote('drumDeep', midiF(TRIAL.trueMidi), 0, 1.3, 0.55, sp.pan); A._sp = null;
-            break;
-          case 'direction': {
-            // the drum speaks in figures of hits, not melody — a processional
-            // rhythm, hard-panned so the ear alone can find its side
-            [[0, 0.5], [0.24, 0.32], [0.48, 0.32], [0.86, 0.38]].forEach(([w, v]) => {
-              A._sp = sp; A.vNote('drum', midiF(45), w, 0.5, v, panHard); A._sp = null;
-            });
-            break;
-          }
           case 'silence': {
             // shaken coins settle: grains land softer and softer until the
             // last one rings alone — a tiny bell, the note beneath the shimmer
@@ -1511,14 +1573,30 @@ function updateCommune(dt) {
     mg.lastRespT = time;
     A._sp = sp; A.vNote('horn', midiF(targetM), 0, 0.6, 0.16 + 0.3 * windN, sp.pan); A._sp = null;
   }
-  // polyphony: the tak rolls on regardless, softening as you near the truth
-  if (verb === 'polyphony' && audioOn && mg.lure && time - mg.lastHumT > LOOPLEN) {
+  // deepbeat: the phantom tak rolls on regardless, from across the sand
+  if (verb === 'deepbeat' && audioOn && mg.lure && time - mg.lastHumT > LOOPLEN) {
     mg.lastHumT = time;
     const lsp = A.panFor(mg.lure.x, mg.lure.z);
     [0, 0.55, 1.25].forEach(w => {
       A._sp = lsp; A.vNote('drum', midiF(TRIAL.lureMidi), w, 0.45, 0.4 * lureGain, lsp.pan); A._sp = null;
     });
   }
+  // beat / deepbeat: the drum's own heartbeat, bar-locked on the audio clock —
+  // the pulse the player knocks with; the sand flash marks every heart
+  if (isBeat && audioOn) {
+    const clock = A.ctx.currentTime;
+    const every = SPB * (verb === 'deepbeat' ? TRIAL.deepEvery : 1);
+    const k = Math.floor(clock / every);
+    if (k !== mg.lastBeatK) {
+      mg.lastBeatK = k;
+      mg.beatGlow = 1;
+      A._sp = sp;
+      A.vNote(inst.synth, midiF(verb === 'deepbeat' ? TRIAL.trueMidi : 45),
+        Math.max(0, k * every - clock), 0.55, 0.55, sp.pan);
+      A._sp = null;
+    }
+  }
+  mg.beatGlow = Math.max(0, mg.beatGlow - dt * 2.5);
   // matching the decoy earns nothing — sustain it and the voice shows the root
   if ((verb === 'harmony' || verb === 'chord') && holding && !root && q > 0) {
     mg.decoyT += dt;
@@ -1528,7 +1606,7 @@ function updateCommune(dt) {
     }
   } else if (verb === 'harmony' || verb === 'chord') mg.decoyT = 0;
   // sing far from its song and the voice pulls away — a low, unanswered thrum
-  if (holding && verb !== 'rhythm' && q < 0.25 && time - mg.lastPullT > 2.4) {
+  if (holding && !isBeat && verb !== 'rhythm' && q < 0.25 && time - mg.lastPullT > 2.4) {
     mg.lastPullT = time;
     A.tone(midiF(38), { vol: 0.032, dur: 1.6, wet: 0.9 });
   }
@@ -2408,6 +2486,11 @@ function drawTreasure(t) {
   const hv = onTrial ? mg.h / mg.hold : 0;
   const breathy = onTrial && (mg.verb === 'drift' || mg.verb === 'timing');
   const swellN = breathy ? 0.5 + 0.5 * Math.sin(TAU * mg.swPh) : 0;
+  const beatV = onTrial && (mg.verb === 'beat' || mg.verb === 'deepbeat');
+  const beatN = beatV ? mg.beatGlow : 0;
+  // verbs where your hum's pitch matters get the sand-light ladder
+  const ladderV = onTrial && mg.phase === 'commune'
+    && ['pitch', 'drift', 'timing', 'distance', 'harmony', 'silence', 'chord'].includes(mg.verb);
 
   // not yet awake — only the faintest glint marks the resting place
   const rk = tRevealK(t);
@@ -2447,19 +2530,19 @@ function drawTreasure(t) {
   ctx.restore();
 
   // the sand around the voice rises and breathes with the exchange — for breath
-  // voices it visibly swells with the wind; for echo voices it lifts with the match
+  // voices it visibly swells with the wind; for drums it flashes with each heart
   if (onTrial) {
     const gp = project(x, gy0 + 0.06, z);
     if (gp) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       for (let ri = 0; ri < 3; ri++) {
-        const rr = (2.3 + ri * 1.2) * (1 + 0.06 * Math.sin(time * 1.7 + ri * 1.9));
-        const breathe = breathy ? 0.3 + 0.7 * swellN : qv;
-        const a = clamp((0.08 + 0.3 * qv + 0.12 * hv) * breathe, 0, 0.55) * (1 - ri * 0.24);
+        const rr = (2.3 + ri * 1.2) * (1 + 0.06 * Math.sin(time * 1.7 + ri * 1.9) + beatN * 0.09);
+        const breathe = breathy ? 0.3 + 0.7 * swellN : beatV ? 0.45 : qv;
+        const a = clamp((0.08 + 0.3 * qv + 0.12 * hv + beatN * 0.4) * breathe, 0, 0.6) * (1 - ri * 0.24);
         if (a <= 0.012) continue;
         ctx.strokeStyle = `rgba(255,214,150,${a})`;
-        ctx.lineWidth = Math.max(1, 0.16 * gp.s);
+        ctx.lineWidth = Math.max(1, (0.16 + beatN * 0.1) * gp.s);
         ctx.beginPath();
         ctx.ellipse(gp.x,
           gp.y - (hv * 0.5 + (breathy ? swellN * 0.22 : qv * 0.3)) * gp.s,
@@ -2467,6 +2550,55 @@ function drawTreasure(t) {
         ctx.stroke();
       }
       ctx.restore();
+    }
+  }
+
+  // the pitch ladder: a hairline of light rising from the voice, a knot of
+  // gold marking the note it asks for; your hum rises as a warmer wisp beside
+  // you — finding the pitch becomes something you can SEE, ear still leading.
+  // for breath voices the knot itself rides the swell, so the wind is visible
+  if (ladderV && mg.noteT) {
+    const lo = mg.verb === 'distance' ? TRIAL.distRoot - 9 : TRIAL.humBase;
+    const span = mg.verb === 'distance' ? 18 : 12;
+    const frac = m => clamp((m - lo) / span, 0, 1);
+    const LH = 5.2, LHm = LH * 0.72;
+    const tb = project(x, gy0 + 0.05, z), tt = project(x, gy0 + LH, z);
+    if (tb && tt) {
+      const ty = tb.y + (tt.y - tb.y) * frac(mg.noteT);
+      const matched = mg.q > 0.55;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(255,218,160,${0.16 + 0.1 * mg.q})`;
+      ctx.lineWidth = Math.max(1, 0.05 * s);
+      ctx.beginPath(); ctx.moveTo(tb.x, tb.y); ctx.lineTo(tt.x, tt.y); ctx.stroke();
+      const kr = (matched ? 0.34 : 0.22) * s * (1 + 0.1 * Math.sin(time * 5));
+      const kg = ctx.createRadialGradient(tb.x, ty, 0, tb.x, ty, kr * 2.2);
+      kg.addColorStop(0, `rgba(255,236,190,${matched ? 0.95 : 0.6})`);
+      kg.addColorStop(1, 'rgba(255,236,190,0)');
+      ctx.fillStyle = kg;
+      ctx.fillRect(tb.x - kr * 2.2, ty - kr * 2.2, kr * 4.4, kr * 4.4);
+      ctx.restore();
+    }
+    // your own wisp — rises beside you while you hum (for the oud, your
+    // position IS your pitch, so the wisp lives while you merely stand there)
+    if (onTrial && (keys.Space || mg.verb === 'distance')) {
+      const pb = project(p.x, groundH(p.x, p.z) + 0.05, p.z), pt = project(p.x, groundH(p.x, p.z) + LHm, p.z);
+      if (pb && pt) {
+        const uy = pb.y + (pt.y - pb.y) * frac(mg.hm);
+        const near = mg.q > 0.55;   // the same match every verb computes — knots agree
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(255,186,130,0.22)';
+        ctx.lineWidth = Math.max(1, 0.05 * s);
+        ctx.beginPath(); ctx.moveTo(pb.x, pb.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+        const ur = (near ? 0.3 : 0.2) * s;
+        const ug = ctx.createRadialGradient(pb.x, uy, 0, pb.x, uy, ur * 2.2);
+        ug.addColorStop(0, `rgba(255,206,150,${near ? 0.9 : 0.55})`);
+        ug.addColorStop(1, 'rgba(255,206,150,0)');
+        ctx.fillStyle = ug;
+        ctx.fillRect(pb.x - ur * 2.2, uy - ur * 2.2, ur * 4.4, ur * 4.4);
+        ctx.restore();
+      }
     }
   }
 
