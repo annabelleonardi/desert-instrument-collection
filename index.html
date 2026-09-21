@@ -350,6 +350,41 @@ const A = {
     }
   },
 
+  // ---------------- the traveler's hum (trial voice) ----------------
+  // one sustained tone, pitched live each frame: hold longer and it rises,
+  // release and it falls. soft octave shimmer + breath vibrato.
+  humStart() {
+    if (!this.ctx || this.ctx.state !== 'running' || this._hum) return;
+    const c = this.ctx, t = c.currentTime;
+    const o1 = c.createOscillator(); o1.type = 'sine';
+    const o2 = c.createOscillator(); o2.type = 'sine';
+    const g2 = c.createGain(); g2.gain.value = 0.22;
+    const vib = c.createOscillator(); vib.frequency.value = 4.6;
+    const vg = c.createGain(); vg.gain.value = 7;          // cents of breath
+    vib.connect(vg); vg.connect(o1.detune); vg.connect(o2.detune);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.075, t + 0.16);
+    o1.connect(g); o2.connect(g2); g2.connect(g);
+    this.route(g, 0.85, 0.4);
+    o1.start(t); o2.start(t); vib.start(t);
+    this._hum = { o1, o2, g, vib };
+  },
+  humSet(midi) {
+    if (!this._hum) return;
+    const t = this.ctx.currentTime, f = midiF(midi);
+    this._hum.o1.frequency.setTargetAtTime(f, t, 0.045);
+    this._hum.o2.frequency.setTargetAtTime(f * 2, t, 0.045);
+  },
+  humStop() {
+    if (!this._hum) return;
+    const h = this._hum, t = this.ctx.currentTime;
+    h.g.gain.cancelScheduledValues(t);
+    h.g.gain.setTargetAtTime(0.0001, t, 0.09);
+    h.o1.stop(t + 0.5); h.o2.stop(t + 0.5); h.vib.stop(t + 0.5);
+    this._hum = null;
+  },
+
   // ---------------- instrument voices ----------------
   // each: (freq, when, dur, vol, pan) — all scheduled on the audio clock
   vPluck(freq, when, dur, vol, pan, bright = 6, dark = false) {
@@ -577,21 +612,25 @@ const ACTS = [1, 1, 1, 1, 1, 2, 2, 2, 3, 3];
 const ACT_GATE = { 2: 5, 3: 8 };       // treasures of act n reveal themselves once litCount >= gate
 const GLYPHS = ['\u266A', '\u266B', '\u25CF', '\u25C8', '\u2726', '\u274B', '\u2727', '\u25C9', '\u2B23', '\u2742'];
 
-// per-instrument trial configs — type 1=steady hold (breath), 3=echo-match (listen, then
-// sing the phrase back: each pick is a note index into the instrument's own phrase, so
-// the rhythm you echo is the melody itself)
-const MINIGAMES = [
-  { type: 3, pick: [0, 1, 2, 3, 4],      window: 0.30, missAllow: 1 },  // Lyre   — 5 rising notes
-  { type: 1, hold: 3.0, zone: 0.25, oscSpeed: 0.7, fillRate: 0.9, drainRate: 0.55, timeLimit: 8 }, // Flute
-  { type: 3, pick: [0, 1, 2, 4, 6],      window: 0.28, missAllow: 1 },  // Drum   — offbeat pulse
-  { type: 3, pick: [0, 1, 2, 3, 4, 6],   window: 0.28, missAllow: 1 },  // Oud    — 6-note figure
-  { type: 3, pick: [0, 1, 2, 3, 4, 5],   window: 0.28, missAllow: 1 },  // Bells  — steady quarters
-  { type: 3, pick: [0, 2, 4, 6, 12, 14], window: 0.28, missAllow: 2 },  // Harp   — rising arc
-  { type: 3, pick: [0, 2, 4, 6, 8, 10, 12, 14], window: 0.26, missAllow: 2 }, // Shaker — pure pulse
-  { type: 1, hold: 2.0, zone: 0.15, oscSpeed: 1.1, fillRate: 0.85, drainRate: 0.7, timeLimit: 6 }, // Horn
-  { type: 3, pick: [0, 1, 2, 4],         window: 0.30, missAllow: 1 },  // Deep Drum — slow, low
-  { type: 3, pick: [0, 1, 2, 3],         window: 0.32, missAllow: 1 }   // Choir  — long tones
-];
+// trials are not rhythm games — they are listening deepened. the voice sings its
+// phrase once, then falls silent; you HOLD SPACE and let your hum rise to meet it
+// (hold longer = higher, release = drop). when your pitch meets one of the voice's
+// own notes, it harmonizes back and the sand around it begins to sing. sustained
+// harmony wakes the voice — there is no fail state, only resonance and its absence.
+// type 3 = echo voices (match any note of their learned contour, octave-free);
+// type 1 = breath voices (flute & horn): the wind visibly swells the sand and your
+// hum must ride the same swell — releasing on a rising wind lets it die.
+const BREATH = new Set([1, 7]);
+const TRIAL = {
+  hold: { 3: 6.5, 1: 5.5 },      // seconds of sustained harmony the voice needs
+  tol: 1.7,                      // semitones of falloff around "in tune"
+  humBase: 52,                   // the traveler's hum climbs one octave (E3..E4) —
+                                 // E sits outside the pentatonic voices, so rest
+                                 // is always "away": you must rise to meet them
+  riseT: 1.6, fallT: 0.75,       // breath in / breath out of the pitch glide
+  swellAmp: 3.0,                 // the wind's swell, in semitones
+  swellT: { 1: 5.2, 7: 4.2 }     // swell period per breath voice
+};
 
 // =====================================================================
 //  WORLD — a contained canyon shrine
@@ -691,7 +730,8 @@ let victoryT0 = -1, loopNext = 0;
 let warm = 0;                        // golden tint grows with each find
 const collectOrder = [];             // instrument indices in the order found
 let loreActive = -1;                 // index of currently visible lore fragment
-let mg = null;                       // active minigame runtime state, or null
+let mg = null;                       // active trial (listening commune) state, or null
+let trialEchoHint = false, trialBreathHint = false;   // one-time whispers per session
 const particles = [];
 const waves = [];
 const keys = {};
@@ -860,11 +900,13 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.repeat) return;
   if (e.code === 'Space') {
-    if (mg && (mg.phase === 'play' || mg.phase === 'echo')) mg.pressQueued = true;
-    else if (mg) { /* ignore presses during intro/listen/win/fail */ }
-    else sing();
+    // while a trial sings with you, Space IS the hum — held, not tapped
+    if (!mg) sing();
   }
-  if (e.code === 'Escape' && mg && mg.phase !== 'win') { mg = null; showToast(L('the voice slips away\u2026', '声音悄然离去\u2026\u2026')); }
+  if (e.code === 'Escape' && mg && mg.phase !== 'win') {
+    mg = null; A.humStop();
+    showToast(L('the voice slips away\u2026', '声音悄然离去……'));
+  }
   if (e.code === 'KeyM') toggleAudio();
   if (e.code === 'KeyC') {
     compassPref = !compassPref;
@@ -910,7 +952,7 @@ function sing() {
     return;
   }
   if (best && bestD < 26) {
-    startMinigame(best);
+    startTrial(best);
     return;
   }
   // the dune's edge answers a song with a slide
@@ -942,121 +984,166 @@ function sing() {
   }
 }
 
-function startMinigame(t) {
-  const cfg = MINIGAMES[t.i];
+function startTrial(t) {
   const inst = INSTRUMENTS[t.i];
+  const type = BREATH.has(t.i) ? 1 : 3;
   mg = {
-    ti: t.i, type: cfg.type, cfg, t0: time,
-    phase: 'intro', hits: 0, misses: 0,
-    f: 0, inZoneAcc: 0, _lastTick: 0,
-    seq: cfg.type === 3 ? cfg.pick.map(k => inst.phrase[k]) : null,
-    echoIdx: 0, res: null, listenT0: 0, listenDur: 0, echoT0: 0, blooms: [],
-    pressQueued: false, endT: 0,
+    ti: t.i, type, t0: time,
+    phase: 'intro',
+    contour: type === 3 ? [...new Set(inst.phrase.map(n => n[0]))].sort((a, b) => a - b) : null,
+    callIdx: 0, listenT0: 0, listenDur: 0, communeT0: 0, endT: 0,
+    climb: 0, q: 0, h: 0, hold: TRIAL.hold[type],
+    swPh: -0.25, swStall: 0, wasHold: false,
+    lastRespT: 0, lastCallT: 0, lastPullT: 0, lastDieT: 0,
     yawTarget: Math.atan2(t.x - p.x, t.z - p.z)
   };
-  if (mg.seq) mg.res = mg.seq.map(() => null);
   waves.push({ x: t.x, z: t.z, r: 0.4, max: 12 });
   showToast(L(inst.name + ' \u2014 answer its call', inst.zh + '\u2014\u2014回应它的呼唤'));
 }
 
-// play one note of a trial: k is either an index into the instrument's phrase
-// (hold trials) or a [midi, off, dur] note taken from the echo sequence
-function playMinigameNote(k) {
-  if (!mg) return;
-  const inst = INSTRUMENTS[mg.ti];
-  const note = Array.isArray(k) ? k : inst.phrase[Math.min(k, inst.phrase.length - 1)];
-  const [m, , dur] = note;
-  const sp = A.panFor(treasures[mg.ti].x, treasures[mg.ti].z);
-  A.playPhrase({ ...inst, phrase: [[m, 0, dur]] }, 1.05, 0, sp.pan, sp);
-}
-
-function updateMinigame(dt) {
+// one long exchange of listening and singing — no timers, no fail state
+function updateTrial(dt) {
   if (!mg) return;
   const t = treasures[mg.ti];
+  const inst = INSTRUMENTS[mg.ti];
   const el = time - mg.t0;
 
   if (mg.phase === 'intro') {
-    // gently turn toward the treasure
+    // gently turn toward the voice
     const dy = mg.yawTarget - yaw;
     yaw += dy * 2.0 * dt;
     if (el > 1.2) {
-      if (mg.type === 3) {
-        // the instrument sings first — then it is your turn to echo it back
-        mg.phase = 'listen';
-        mg.listenT0 = time;
-        const sp = A.panFor(t.x, t.z);
-        A.playPhrase({ ...INSTRUMENTS[mg.ti], phrase: mg.seq }, 1.35, 0, sp.pan, sp);
-        mg.listenDur = Math.max(...mg.seq.map(n => n[1] + n[2])) * SPB + 0.9;
-      } else {
-        // the voice introduces itself before the breath trial
-        mg.phase = 'play';
-        const sp = A.panFor(t.x, t.z);
-        A.playPhrase(INSTRUMENTS[mg.ti], 1.1, 0, sp.pan, sp);
-      }
+      // the voice sings its phrase once — then the canyon goes quiet
+      mg.phase = 'listen';
+      mg.listenT0 = time;
+      const sp = A.panFor(t.x, t.z);
+      A.playPhrase(inst, 1.35, 0, sp.pan, sp);
+      mg.listenDur = Math.max(...inst.phrase.map(n => n[1] + n[2])) * SPB + 1.1;
     }
     return;
   }
   if (mg.phase === 'listen') {
-    if (time - mg.listenT0 > mg.listenDur) { mg.phase = 'echo'; mg.echoT0 = time + 0.9; }
-    return;
-  }
-  if (mg.phase === 'win' || mg.phase === 'fail') {
-    if (time > mg.endT) {
-      if (mg.phase === 'win') awaken(t);
-      mg = null;
+    if (time - mg.listenT0 > mg.listenDur) {
+      mg.phase = 'commune'; mg.communeT0 = time; mg.lastCallT = time;
+      // the only teaching is a whisper — the mechanic is the same verb, deepened
+      if (mg.type === 1 && !trialBreathHint) {
+        trialBreathHint = true;
+        showToast(L('the wind breathes with the sand \u2014 hold SPACE and ride its swell',
+                    '风与沙同呼吸——按住 空格，乘着风的起伏'));
+      } else if (mg.type === 3 && !trialEchoHint) {
+        trialEchoHint = true;
+        showToast(L('the canyon falls silent \u2014 hold SPACE and let your voice rise to meet it',
+                    '峡谷安静下来——按住 空格，让你的声音升起应和'));
+      }
     }
     return;
   }
+  if (mg.phase === 'win') {
+    if (time > mg.endT) { awaken(t); mg = null; }
+    return;
+  }
 
-  // phase 'play' (hold) / 'echo' (echo-match)
-  if (mg.type === 1) updateHold(dt, time - mg.t0);
-  else updateEcho();
-}
-
-function updateHold(dt, el) {
-  const c = mg.cfg;
+  // ---- commune ----
+  const breath = mg.type === 1;
   const holding = !!keys.Space;
-  mg.f += (holding ? c.fillRate : -c.drainRate) * dt;
-  mg.f = clamp(mg.f, 0, 1);
-  const center = 0.5 + 0.18 * Math.sin(el * c.oscSpeed);
-  const inZone = Math.abs(mg.f - center) < c.zone;
-  if (inZone) {
-    mg.inZoneAcc += dt;
-    if (time - mg._lastTick > 0.4) { mg._lastTick = time; playMinigameNote(0); }
-  }
-  if (mg.inZoneAcc >= c.hold) { mg.phase = 'win'; mg.endT = time + 0.4; }
-  else if (el > c.timeLimit) { mg.phase = 'fail'; mg.endT = time + 1.3; }
-}
 
-function updateEcho() {
-  const c = mg.cfg;
-  const seq = mg.seq;
-  const i = mg.echoIdx;
-  if (i >= seq.length) {
-    mg.phase = mg.misses <= c.missAllow ? 'win' : 'fail';
-    mg.endT = time + (mg.phase === 'fail' ? 1.3 : 0.4);
-    return;
+  // the traveler's hum: held = rising, released = falling — a breath, not a button
+  mg.climb = clamp(mg.climb + (holding ? dt / TRIAL.riseT : -dt / TRIAL.fallT), 0, 1);
+  const hm = TRIAL.humBase + 12 * mg.climb;
+
+  // the wind's swell (breath voices): the target the sand itself displays
+  if (breath) {
+    if (mg.swStall > 0) mg.swStall -= dt;
+    else mg.swPh += dt / TRIAL.swellT[mg.ti];
   }
-  const tHit = mg.echoT0 + seq[i][1] * SPB;
-  const winEnd = tHit + c.window / 2;
-  if (mg.pressQueued) {
-    mg.pressQueued = false;
-    // a press inside the window hits; early presses are simply swallowed so
-    // a nervous extra tap never costs the note
-    if (time >= tHit - c.window / 2 - 0.05 && time <= winEnd + 0.05) {
-      mg.hits++;
-      mg.res[i] = 'hit';
-      playMinigameNote(seq[i]);
-      sparkleAt(treasures[mg.ti].x, groundH(treasures[mg.ti].x, treasures[mg.ti].z) + 1, treasures[mg.ti].z, 6);
-      mg.blooms.push({ m: seq[i][0], t: time });
-      mg.echoIdx++;
+  const swellN = breath ? 0.5 + 0.5 * Math.sin(TAU * mg.swPh) : 0;
+  const swellTarget = () => TRIAL.humBase + 6 + TRIAL.swellAmp * Math.sin(TAU * mg.swPh);
+  const nearestContour = () => mg.contour.reduce((best, m) => {
+    const d = Math.abs(hm - m) % 12, dw = Math.min(d, 12 - d);
+    const bd = Math.abs(hm - best) % 12, bw = Math.min(bd, 12 - bd);
+    return dw < bw ? m : best;
+  }, mg.contour[0]);
+
+  // how close are you to the voice? echo voices listen in pitch classes — your
+  // hum and its song may sit an octave apart, and that is still harmony;
+  // breath voices listen in absolute pitch: ride the swell itself
+  let dist;
+  if (breath) dist = Math.abs(hm - swellTarget());
+  else {
+    dist = 99;
+    for (const m of mg.contour) {
+      const d = Math.abs(hm - m) % 12;
+      dist = Math.min(dist, Math.min(d, 12 - d));
     }
+  }
+  const q = 1 - clamp(dist / TRIAL.tol, 0, 1);
+  mg.q = lerp(mg.q, q, 1 - Math.pow(0.002, dt));
+
+  // harmony gathers while you meet the voice, settles while you drift —
+  // silence never counts: only an actually sung, in-tune breath does
+  const good = holding && q >= 0.55;
+  mg.h = clamp(mg.h + (good ? 0.45 + 0.75 * q
+                          : -(breath && mg.swStall > 0 ? 0.9 : 0.4)) * dt, 0, mg.hold);
+  if (mg.h >= mg.hold) {                       // the voice remembers itself
+    mg.phase = 'win'; mg.endT = time + 1.1;
+    A.humStop();
+    sparkleAt(t.x, groundH(t.x, t.z) + 1, t.z, 34);
+    waves.push({ x: t.x, z: t.z, r: 0.6, max: 20 });
     return;
   }
-  if (time > winEnd) {         // the note faded unanswered
-    mg.misses++;
-    mg.res[i] = 'miss';
-    mg.echoIdx++;
+
+  // letting go of a truly locked ascent lets the wind die — the swell stalls,
+  // the sand settles; small corrections never break the breath
+  if (breath && mg.wasHold && !holding && mg.q > 0.55 &&
+      Math.cos(TAU * mg.swPh) > 0.6 && time - mg.lastDieT > 2.2) {
+    mg.lastDieT = time; mg.swStall = 1.4;
+    A.tone(midiF(38), { when: 0.05, vol: 0.04, dur: 1.6, wet: 0.9 });
+    puff(t.x, t.z, 6);
+  }
+  mg.wasHold = holding;
+
+  // the voice responds in real time — harmonizing when met, pulling away when not
+  if (holding) {
+    A.humStart(); A.humSet(hm);
+    if (good && time - mg.lastRespT > 0.55) {
+      mg.lastRespT = time;
+      const sp = A.panFor(t.x, t.z);
+      A._sp = sp;
+      const respM = breath ? swellTarget() + (mg.ti === 1 ? 12 : 0) : nearestContour();
+      A.vNote(inst.synth, midiF(respM), 0, 0.5, 0.4 + 0.5 * q, sp.pan);
+      A._sp = null;
+    }
+  } else {
+    A.humStop();
+    // quiet, it keeps calling its melody, note by note — an invitation to answer
+    if (time - mg.lastCallT > 2.8) {
+      mg.lastCallT = time;
+      const sp = A.panFor(t.x, t.z);
+      A._sp = sp;
+      const callM = breath ? swellTarget() + (mg.ti === 1 ? 12 : 0)
+                           : mg.contour[mg.callIdx++ % mg.contour.length];
+      A.vNote(inst.synth, midiF(callM), 0, 0.9, 0.45, sp.pan);
+      A._sp = null;
+    }
+  }
+  // sing far from its song and the voice pulls away — a low, unanswered thrum
+  if (holding && q < 0.25 && time - mg.lastPullT > 2.4) {
+    mg.lastPullT = time;
+    A.tone(midiF(38), { vol: 0.032, dur: 1.6, wet: 0.9 });
+  }
+
+  // the sand itself sings: motes lift around the voice as harmony locks in,
+  // and for breath voices they drift with the wind's swell
+  const moteK = breath ? 0.14 + 0.34 * swellN + mg.q * 0.25 : mg.q * 0.5;
+  if (Math.random() < moteK) {
+    const a = rand(TAU), r = rand(2.2, 4.2);
+    particles.push({
+      kind: 'spark',
+      x: t.x + Math.cos(a) * r, y: groundH(t.x, t.z) + rand(0.1, 0.5), z: t.z + Math.sin(a) * r,
+      vx: breath ? Math.sin(TAU * mg.swPh) * 1.3 : rand(-0.4, 0.4),
+      vy: rand(0.9, 2.1), vz: rand(-0.4, 0.4),
+      life: rand(0.9, 1.6), life0: 1.6, size: rand(0.05, 0.12), ph: rand(TAU)
+    });
   }
 }
 
@@ -1314,6 +1401,7 @@ function update(dt) {
         humBar = humN;
         for (const t of treasures) {
           if (t.found || tRevealK(t) <= 0) continue;
+          if (mg && mg.ti === t.i) continue;      // the voice on trial speaks for itself
           const d = Math.hypot(t.x - p.x, t.z - p.z);
           if (d > 90) continue;
           const sp = A.panFor(t.x, t.z);
@@ -1326,8 +1414,8 @@ function update(dt) {
     }
   }
 
-  // --- minigame update ---
-  updateMinigame(dt);
+  // --- trial update ---
+  updateTrial(dt);
 
   // --- treasure flight to the altar + arrival sparkles ---
   for (const t of treasures) {
@@ -1845,6 +1933,13 @@ function drawTreasure(t) {
 
   if (!t.found) drawShadow(x, z, 0.8);
 
+  // a voice on trial: the world carries all the feedback — no meters, no staff.
+  // the sand rises with the match, the glow deepens as harmony gathers.
+  const onTrial = mg && mg.ti === t.i && !t.found;
+  const qv = onTrial ? mg.q : 0;
+  const hv = onTrial ? mg.h / mg.hold : 0;
+  const swellN = onTrial && mg.type === 1 ? 0.5 + 0.5 * Math.sin(TAU * mg.swPh) : 0;
+
   // not yet awake — only the faintest glint marks the resting place
   const rk = tRevealK(t);
   if (rk <= 0) {
@@ -1861,7 +1956,8 @@ function drawTreasure(t) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   const nearK = !t.found ? clamp(1 - Math.hypot(t.x - p.x, t.z - p.z) / 26, 0, 1) : 0;
-  const beamA = (t.found ? 0.5 : 0.16 + 0.08 * Math.sin(time * 2.4 + t.ph) + nearK * 0.3) * rk;
+  const beamA = (t.found ? 0.5 : 0.16 + 0.08 * Math.sin(time * 2.4 + t.ph) + nearK * 0.3) * rk
+    + qv * 0.3 + hv * 0.28;
   const bw = 0.55 * s;
   const bg = ctx.createLinearGradient(0, py - 26 * s, 0, py);
   bg.addColorStop(0, 'rgba(255,215,150,0)');
@@ -1869,16 +1965,41 @@ function drawTreasure(t) {
   ctx.fillStyle = bg;
   ctx.fillRect(px - bw, py - 26 * s, bw * 2, 26 * s);
 
-  // glowing orb
-  const R = (0.85 + 0.12 * Math.sin(time * 3 + t.ph) + nearK * 0.2) * s;
+  // glowing orb — swells brighter as harmony locks in
+  const R = (0.85 + 0.12 * Math.sin(time * 3 + t.ph) + nearK * 0.2) * s
+    * (1 + qv * 0.5 + hv * 0.7);
   const og = ctx.createRadialGradient(px, py, 0, px, py, R * 2.4);
-  const hue = t.found ? '255,222,160' : (nearK > 0.5 ? '255,235,180' : '255,205,150');
+  const hue = t.found ? '255,222,160' : (hv > 0.2 ? '255,240,205' : nearK > 0.5 ? '255,235,180' : '255,205,150');
   og.addColorStop(0, `rgba(${hue},${0.95 * rk})`);
   og.addColorStop(0.4, `rgba(${hue},${0.5 * rk})`);
   og.addColorStop(1, `rgba(${hue},0)`);
   ctx.fillStyle = og;
   ctx.fillRect(px - R * 2.4, py - R * 2.4, R * 4.8, R * 4.8);
   ctx.restore();
+
+  // the sand around the voice rises and breathes with the exchange — for breath
+  // voices it visibly swells with the wind; for echo voices it lifts with the match
+  if (onTrial) {
+    const gp = project(x, gy0 + 0.06, z);
+    if (gp) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let ri = 0; ri < 3; ri++) {
+        const rr = (2.3 + ri * 1.2) * (1 + 0.06 * Math.sin(time * 1.7 + ri * 1.9));
+        const breathe = mg.type === 1 ? 0.3 + 0.7 * swellN : qv;
+        const a = clamp((0.08 + 0.3 * qv + 0.12 * hv) * breathe, 0, 0.55) * (1 - ri * 0.24);
+        if (a <= 0.012) continue;
+        ctx.strokeStyle = `rgba(255,214,150,${a})`;
+        ctx.lineWidth = Math.max(1, 0.16 * gp.s);
+        ctx.beginPath();
+        ctx.ellipse(gp.x,
+          gp.y - (hv * 0.5 + (mg.type === 1 ? swellN * 0.22 : qv * 0.3)) * gp.s,
+          rr * gp.s, rr * gp.s * 0.26, 0, 0, TAU);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
 
   // instrument glyph inside
   ctx.strokeStyle = `rgba(70,32,48,${0.85 * (1 - fog) * rk})`;
@@ -2388,13 +2509,6 @@ function drawCompass() {
   ctx.fillText(L(`${Math.round(bestD)} paces`, `${Math.round(bestD)} 步`), cx, cy + 26);
 }
 
-// ---------------- minigame UI — fixed screen-space overlay ----------------
-function mgInstruction() {
-  if (mg.type === 1) return L('hold SPACE — keep the fill inside the green zone', '按住空格——让光点保持在绿色区域内');
-  if (mg.phase === 'listen') return L('listen\u2026', '聆听……');
-  return L('echo it back — tap SPACE as each note crosses the line', '回声应和——当音符越过基线时按 空格');
-}
-
 // explicit guide to the first voice — a gold marker over the instrument while
 // the tutorial leads you there, an edge arrow when it leaves the frame
 function drawTutGuide() {
@@ -2500,261 +2614,6 @@ function drawTutorial() {
   ctx.restore();
 }
 
-function drawMinigame() {
-  if (!mg) return;
-  const t = treasures[mg.ti];
-  const cx = W * 0.5, cy = H * 0.42;
-  const Rmax = clamp(Math.min(W, H) * 0.15, 64, 120);
-
-  // dark backdrop so the overlay pops against the sand
-  const bg = ctx.createRadialGradient(cx, cy, Rmax * 0.4, cx, cy, Rmax * 3.6);
-  bg.addColorStop(0, 'rgba(22,13,25,0.66)');
-  bg.addColorStop(0.6, 'rgba(22,13,25,0.40)');
-  bg.addColorStop(1, 'rgba(22,13,25,0)');
-  ctx.fillStyle = bg;
-  ctx.fillRect(cx - Rmax * 3.8, cy - Rmax - 150, Rmax * 7.6, Rmax * 2 + 320);
-
-  // glint ring on the treasure itself, ties overlay to the world
-  const pr = project(t.x, groundH(t.x, t.z) + 1.35, t.z);
-  if (pr) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = `rgba(255,220,160,${0.45 + 0.25 * Math.sin(time * 6)})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(pr.x, pr.y, 11 + 2.5 * Math.sin(time * 6), 0, TAU);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  if (mg.phase === 'intro') {
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,236,205,0.96)';
-    ctx.font = '600 24px Georgia';
-    ctx.fillText(INSTR(mg.ti), cx, cy - Rmax - 62);
-    ctx.fillStyle = `rgba(255,220,160,${0.62 + 0.28 * Math.sin(time * 5)})`;
-    ctx.font = '16px Georgia';
-    ctx.fillText(mgInstruction(), cx, cy - Rmax - 36);
-    ctx.font = '15px Georgia';
-    ctx.fillText(L('get ready\u2026', '准备……'), cx, cy + Rmax + 52);
-    ctx.restore();
-    return;
-  }
-  if (mg.phase === 'win' || mg.phase === 'fail') {
-    const k = clamp(1 - (mg.endT - time) / 0.4, 0, 1);
-    const col = mg.phase === 'win' ? '180,255,190' : '255,150,120';
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = `rgba(${col},${0.8 * (1 - k)})`;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(cx, cy, Rmax * (0.4 + k * 1.2), 0, TAU);
-    ctx.stroke();
-    ctx.textAlign = 'center';
-    ctx.font = '600 24px Georgia';
-    ctx.fillStyle = `rgba(${col},${0.95 - 0.35 * k})`;
-    ctx.fillText(mg.phase === 'win' ? L('\u266A harmony restored', '\u266A 和声已复原') : L('the voice slips away\u2026', '声音悄然离去\u2026\u2026'), cx, cy + 6);
-    if (mg.phase === 'fail') {
-      ctx.font = '15px Georgia';
-      ctx.fillStyle = `rgba(255,220,160,${0.8 - 0.3 * k})`;
-      ctx.fillText(L('sing again to try once more', '再唱一次，重新尝试'), cx, cy + 34);
-    }
-    ctx.restore();
-    return;
-  }
-
-  // active phases: listen / echo / play
-  if (mg.type === 3) drawEchoUI(cx, cy, Rmax);
-  else drawHoldUI(cx, cy, Rmax);
-  drawMinigameProgress(cx, cy, Rmax);
-
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255,236,205,0.92)';
-  ctx.font = '600 21px Georgia';
-  ctx.fillText(INSTR(mg.ti), cx, cy - Rmax - 62);
-  ctx.fillStyle = 'rgba(255,220,160,0.75)';
-  ctx.font = '15px Georgia';
-  ctx.fillText(mgInstruction(), cx, cy - Rmax - 38);
-  ctx.restore();
-}
-
-// echo trial: a horizontal staff — the instrument's notes drift toward the
-// center line. during 'listen' they glow as they sound; during 'echo' you tap
-// SPACE as each note crosses the line (pitch sets its height, duration its size)
-function drawEchoUI(cx, cy, Rmax) {
-  const c = mg.cfg;
-  const pps = Rmax * 0.9;                    // px per second of approach
-  const staffY = cy;
-  const halfH = Rmax * 0.58;
-  const seq = mg.seq;
-  const pitchY = m => staffY - clamp((m - 55) * 3.5, -halfH, halfH);
-
-  ctx.save();
-  // staff baseline + center "now" line
-  ctx.strokeStyle = 'rgba(255,220,160,0.28)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(cx - Rmax * 1.9, staffY);
-  ctx.lineTo(cx + Rmax * 1.9, staffY);
-  ctx.stroke();
-  const cur = mg.phase === 'echo' && mg.echoIdx < seq.length ? mg.echoIdx : -1;
-  const inWinNow = cur >= 0 &&
-    Math.abs(time - (mg.echoT0 + seq[cur][1] * SPB)) <= c.window / 2;
-  ctx.strokeStyle = inWinNow ? 'rgba(140,255,175,0.95)' : 'rgba(255,235,200,0.55)';
-  ctx.lineWidth = inWinNow ? 4 : 2.5;
-  ctx.beginPath();
-  ctx.moveTo(cx, staffY - halfH - 10);
-  ctx.lineTo(cx, staffY + halfH + 10);
-  ctx.stroke();
-
-  // the notes
-  for (let i = 0; i < seq.length; i++) {
-    const [m, off, dur] = seq[i];
-    let tNote, res = null, sounding = false;
-    if (mg.phase === 'listen') {
-      tNote = mg.listenT0 + off * SPB;
-      sounding = time >= tNote && time <= tNote + dur * SPB;
-    } else {
-      tNote = mg.echoT0 + off * SPB;
-      res = mg.res[i];
-    }
-    const x = cx + (tNote - time) * pps;
-    if (x < cx - Rmax * 1.9 || x > cx + Rmax * 1.9) continue;
-    const y = pitchY(m);
-    const r = 5 + Math.min(4, dur * 1.5);
-    if (res === 'hit') {
-      ctx.fillStyle = 'rgba(255,222,110,0.92)';
-      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
-    } else if (res === 'miss') {
-      ctx.strokeStyle = 'rgba(255,120,90,0.8)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r);
-      ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r);
-      ctx.stroke();
-    } else {
-      const isNow = i === cur;
-      ctx.fillStyle = sounding || isNow ? 'rgba(255,240,200,0.95)'
-        : mg.phase === 'echo' ? 'rgba(255,225,170,0.85)' : 'rgba(255,225,170,0.45)';
-      ctx.beginPath(); ctx.arc(x, y, r + (sounding ? 2 : 0), 0, TAU); ctx.fill();
-      if (isNow && inWinNow) {
-        ctx.strokeStyle = 'rgba(140,255,175,0.9)';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, y, r + 6, 0, TAU); ctx.stroke();
-      }
-    }
-  }
-
-  // hit blooms at the center line
-  ctx.globalCompositeOperation = 'lighter';
-  mg.blooms = mg.blooms.filter(b => time - b.t < 0.5);
-  for (const b of mg.blooms) {
-    const k = (time - b.t) / 0.5;
-    ctx.strokeStyle = `rgba(255,235,170,${0.8 * (1 - k)})`;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(cx, pitchY(b.m), 6 + k * 26, 0, TAU); ctx.stroke();
-  }
-  ctx.restore();
-
-  // the breath before your turn
-  if (mg.phase === 'echo' && time < mg.echoT0) {
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = `rgba(255,236,205,${0.7 + 0.3 * Math.sin(time * 6)})`;
-    ctx.font = '600 20px Georgia';
-    ctx.fillText(L('your turn\u2026', '轮到你了……'), cx, staffY - halfH - 26);
-    ctx.restore();
-  }
-}
-
-function drawHoldUI(cx, cy, Rmax) {
-  const c = mg.cfg;
-  const el = time - mg.t0;
-  const center = 0.5 + 0.18 * Math.sin(el * c.oscSpeed);
-  const barH = Rmax * 1.9, barW = 26;
-  const bx = cx + Rmax * 0.95 + 30;
-
-  ctx.save();
-  // bar track
-  ctx.fillStyle = 'rgba(28,16,30,0.78)';
-  ctx.fillRect(bx, cy - barH / 2, barW, barH);
-  // oscillating green zone
-  const zoneY = cy - barH / 2 + (1 - center) * barH;
-  const zoneH = c.zone * 2 * barH;
-  ctx.fillStyle = 'rgba(100,255,140,0.32)';
-  ctx.fillRect(bx + 2, zoneY - zoneH / 2, barW - 4, zoneH);
-  ctx.strokeStyle = 'rgba(140,255,175,0.9)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(bx + 2, zoneY - zoneH / 2, barW - 4, zoneH);
-  // fill level
-  const fillY = cy + barH / 2 - mg.f * barH;
-  const fg = ctx.createLinearGradient(0, fillY, 0, cy + barH / 2);
-  fg.addColorStop(0, 'rgba(255,226,170,0.95)');
-  fg.addColorStop(1, 'rgba(255,170,90,0.5)');
-  ctx.fillStyle = fg;
-  ctx.fillRect(bx + 2, fillY, barW - 4, cy + barH / 2 - fillY);
-  ctx.strokeStyle = 'rgba(255,240,205,0.95)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(bx - 5, fillY);
-  ctx.lineTo(bx + barW + 5, fillY);
-  ctx.stroke();
-  // harmony progress
-  const pw = mg.inZoneAcc / c.hold;
-  ctx.strokeStyle = 'rgba(255,235,200,0.45)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(bx, cy + barH / 2 + 12, barW, 6);
-  ctx.fillStyle = 'rgba(255,255,200,0.9)';
-  ctx.fillRect(bx, cy + barH / 2 + 12, barW * pw, 6);
-  ctx.restore();
-  // % in the center
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255,236,205,0.85)';
-  ctx.font = '600 22px Georgia';
-  ctx.fillText(`${Math.round(pw * 100)}%`, cx, cy + 8);
-  ctx.restore();
-}
-
-function drawMinigameProgress(cx, cy, Rmax) {
-  const count = mg.type === 3 ? mg.seq.length : 0;
-  const dy = cy + Rmax + 34;
-  if (count > 0) {
-    const dw = 18;
-    const sx = cx - (count - 1) * dw / 2;
-    for (let i = 0; i < count; i++) {
-      const res = mg.res[i];
-      ctx.fillStyle = res === 'hit' ? 'rgba(255,222,110,0.95)' :
-        (res === 'miss' ? 'rgba(255,120,80,0.7)' : 'rgba(90,65,80,0.55)');
-      ctx.beginPath();
-      ctx.arc(sx + i * dw, dy, 4.5, 0, TAU);
-      ctx.fill();
-      if (res === 'hit') {
-        ctx.strokeStyle = 'rgba(255,240,180,0.6)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(sx + i * dw, dy, 7.5, 0, TAU);
-        ctx.stroke();
-      }
-    }
-  }
-  // SPACE key pill — lit while an echo or a hold is in progress
-  const pw = 78, ph = 24, px = cx - pw / 2, py = cy + Rmax + 50;
-  const active = mg.phase === 'echo' || (mg.type === 1 && mg.phase === 'play');
-  ctx.save();
-  ctx.strokeStyle = active ? 'rgba(255,225,180,0.9)' : 'rgba(255,225,180,0.4)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(px, py, pw, ph);
-  ctx.fillStyle = active && keys.Space ? 'rgba(140,255,180,0.9)' : 'rgba(255,235,200,0.85)';
-  ctx.font = '600 12px Georgia';
-  ctx.textAlign = 'center';
-  ctx.fillText('SPACE', cx, py + 16);
-  ctx.restore();
-}
-
 // ---------------- master draw ----------------
 function draw() {
   drawSky();
@@ -2827,16 +2686,15 @@ function draw() {
   ctx.fillRect(-140, -140, W + 280, H + 280);
   ctx.restore();
 
-  // minigame overlay last — above post-processing, always crisp
+  // trial feedback lives in the world itself — the sand and the treasure speak
   drawTutGuide();
   drawTutorial();
-  drawMinigame();
 }
 
 // ---------------- main loop ----------------
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   last = now;
   time += dt;
   update(dt);
@@ -2850,7 +2708,7 @@ window.SS = () => ({
   started, got: litCount, px: +p.x.toFixed(1), pz: +p.z.toFixed(1),
   yaw: +yaw.toFixed(2), camx: +cam.x.toFixed(1), camz: +cam.z.toFixed(1),
   victory: victoryT0, order: collectOrder, lore: loreActive,
-  mg: mg ? { ti: mg.ti, type: mg.type, phase: mg.phase, hits: mg.hits, misses: mg.misses } : null,
+  mg: mg ? { ti: mg.ti, type: mg.type, phase: mg.phase, q: +mg.q.toFixed(2), h: +mg.h.toFixed(2), hold: mg.hold } : null,
   audio: A.ctx ? A.ctx.state : 'none'
 });
 window.BOUNDS = { x: XMAX, zl: ZMIN, zh: ZMAX, ax: ALTAR.x, az: ALTAR.z };
