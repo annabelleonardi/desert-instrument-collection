@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Sandsong — the sanctuary remembers its song</title>
+<meta property="og:title" content="Sandsong — the sanctuary remembers its song">
+<meta property="og:description" content="A meditative desert-canyon art-game. Wander, listen, and sing the ten scattered voices home. All sound is synthesized live — nothing is loaded, everything is sung.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://annabelleonardi.github.io/desert-instrument-collection/">
+<meta property="og:image" content="https://annabelleonardi.github.io/desert-instrument-collection/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23150b26'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23ffd98f' font-family='Georgia,serif'%3E%E2%99%AA%3C/text%3E%3C/svg%3E">
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:#150b26}
@@ -53,6 +62,24 @@
   #lore{position:absolute;bottom:120px;left:50%;transform:translateX(-50%);max-width:70%;text-align:center;font-size:14px;font-style:italic;letter-spacing:1.5px;opacity:0;visibility:hidden;transition:opacity 2s ease,visibility 0s linear 2s;color:#d8c9a0;text-shadow:0 0 20px rgba(255,190,110,.4);line-height:1.6;pointer-events:none}
   #lore.show{opacity:.85;visibility:visible;transition:opacity 2s ease,visibility 0s linear 0s}
   .vin .vsong{font-size:11px;letter-spacing:1px;opacity:.5;margin:0 0 24px;font-style:italic;line-height:1.6}
+  .vin .vsong .suff{display:block;margin-top:6px;font-size:13px;opacity:.95;color:#ffe7bb;letter-spacing:3px}
+  /* master volume — a small dial beside the sound button */
+  #vol{position:absolute;top:32px;right:76px;pointer-events:auto;width:86px;height:16px;opacity:.75;cursor:pointer;accent-color:#e8c890;filter:sepia(.5)}
+  #vol:hover{opacity:1}
+  /* resume row on the title screen — offered only when a saved walk exists */
+  #title .resume{margin:-28px 0 34px;display:none;gap:12px}
+  #title .resume button{background:rgba(40,18,45,.45);border:1px solid rgba(245,205,150,.5);color:#f0d7a8;font-family:inherit;font-size:12px;letter-spacing:2px;padding:9px 24px;cursor:pointer;border-radius:3px;transition:all .3s}
+  #title .resume button:hover{border-color:#ffd98f;background:rgba(90,40,80,.6);color:#ffe7bb}
+  /* touch controls — thumb-sized, present only on touch devices */
+  #touchui{position:fixed;inset:0;pointer-events:none;display:none}
+  body.touch #touchui{display:block}
+  .tbtn{position:absolute;pointer-events:auto;background:rgba(30,15,40,.3);border:1px solid rgba(245,205,150,.4);border-radius:14px;color:#f0d7a8;font-family:Georgia,serif;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none;-webkit-user-select:none}
+  .tbtn:active{background:rgba(90,40,80,.55);border-color:#ffd98f}
+  #tdpad{position:absolute;left:18px;bottom:22px;width:138px;height:138px}
+  #tdpad .tbtn{position:absolute;width:44px;height:44px;border-radius:10px;font-size:15px}
+  #tU{left:47px;top:0}#tD{left:47px;bottom:0}#tL{left:0;top:47px}#tR{right:0;top:47px}
+  #tSing{right:22px;bottom:30px;width:76px;height:76px;border-radius:50%;font-size:26px}
+  #tLeave{right:34px;bottom:120px;width:52px;height:30px;border-radius:8px;font-size:11px;font-style:italic;display:none}
 </style>
 </head>
 <body>
@@ -68,6 +95,15 @@
     <svg class="onI" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><path d="M16 9.2c1.3 1.2 1.3 4.4 0 5.6"/><path d="M18.6 7c2.4 2.4 2.4 7.6 0 10"/></svg>
     <svg class="offI" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><line x1="16.5" y1="9.5" x2="21" y2="14.5"/><line x1="21" y1="9.5" x2="16.5" y2="14.5"/></svg>
   </button>
+  <input id="vol" type="range" min="0" max="1" step="0.01" value="0.9" aria-label="master volume">
+  <div id="touchui">
+    <div id="tdpad">
+      <div class="tbtn" id="tU">&#8593;</div><div class="tbtn" id="tD">&#8595;</div>
+      <div class="tbtn" id="tL">&#8592;</div><div class="tbtn" id="tR">&#8594;</div>
+    </div>
+    <div class="tbtn" id="tSing">&#9834;</div>
+    <div class="tbtn" id="tLeave"></div>
+  </div>
   <div id="hint">wasd / arrows — wander &nbsp;·&nbsp; q e / drag — look &nbsp;·&nbsp; space — sing near a voice to begin its trial &nbsp;·&nbsp; inscribed stones tell the story</div>
   <div id="toast"></div>
   <div id="lore"></div>
@@ -84,6 +120,10 @@
       <button data-lang="en">English</button>
       <button data-lang="zh">中文</button>
     </div>
+    <div class="resume" id="resumeRow">
+      <button id="contBtn">continue</button>
+      <button id="newBtn">begin anew</button>
+    </div>
     <p class="press">click anywhere to begin</p>
   </div>
   <div id="victory">
@@ -99,6 +139,12 @@
     </div>
   </div>
 </div>
+<noscript>
+  <p style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#f0d7a8;background:#150b26;font-family:Georgia,serif;text-align:center;padding:24px;letter-spacing:1px">
+    Sandsong is sung live in JavaScript — please enable JavaScript to enter the canyon.<br>
+    《沙之歌》以 JavaScript 实时演绎——请启用 JavaScript 以进入峡谷。
+  </p>
+</noscript>
 <script>
 'use strict';
 /* =====================================================================
@@ -121,12 +167,21 @@ function mixColor(h1, h2, t) {
 }
 const fogMix = (hex, k) => mixColor(hex, '#dba58c', clamp(k, 0, 1));   // fade into canyon haze
 
+// device postures: calm motion for those who ask for it, lean pixels for weak
+// hardware — both shape rendering and particle budgets from the first frame
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const LOWMEM = (navigator.deviceMemory || 8) < 4;
+const PK = LOWMEM ? 0.5 : 1;                  // global particle-count scale
+const IS_TOUCH = 'ontouchstart' in window;
+let masterVol = 0.9;
+try { const v = parseFloat(localStorage.getItem('sandsong_vol')); if (v >= 0 && v <= 1) masterVol = v; } catch (e) {}
+
 // ---------------- canvas ----------------
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1, F = 0, HOR = 0, vigGrad = null, grainPat = null;
 function resize() {
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(LOWMEM ? 1 : 2, window.devicePixelRatio || 1);   // lean devices paint at 1x
   W = innerWidth; H = innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -173,7 +228,7 @@ const A = {
     if (!C) return;
     const c = this.ctx = new C();
     this.master = c.createGain();
-    this.master.gain.value = 0.9;
+    this.master.gain.value = masterVol;
     const comp = c.createDynamicsCompressor();
     comp.threshold.value = -20; comp.knee.value = 25; comp.ratio.value = 4;
     this.master.connect(comp); comp.connect(c.destination);
@@ -317,7 +372,9 @@ const A = {
     g.gain.exponentialRampToValueAtTime(0.0001, t + 2.7);
     s.connect(bp); bp.connect(g); this.route(g, 1, 0.2);
   },
-  footstep() {
+  // one footfall: sand hisses dry in the open, stone clicks, and the canyon
+  // walls hand a short reverb tail back to every step near the cliffs
+  footstep(surface, nearWall = 0) {
     if (!this.ctx || !this.noiseBuf || this.ctx.state !== 'running') return;
     const c = this.ctx, t = c.currentTime;
     const s = this.noiseSrc(t, 0.15);
@@ -327,7 +384,18 @@ const A = {
     const g = c.createGain();
     g.gain.setValueAtTime(0.026 + Math.random() * 0.012, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-    s.connect(bp); bp.connect(g); this.route(g, 1, 0.15);
+    s.connect(bp); bp.connect(g);
+    this.route(g, 1, 0.12 + 0.5 * nearWall);
+    if (surface === 'stone') {
+      // a skin-of-the-teeth click where sand gives way to flagged stone
+      const o = c.createOscillator(); o.type = 'triangle';
+      o.frequency.setValueAtTime(1750 + Math.random() * 500, t);
+      const og = c.createGain();
+      og.gain.setValueAtTime(0.02 + 0.012 * Math.random(), t);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+      o.connect(og); this.route(og, 0.7, 0.3 + 0.3 * nearWall);
+      o.start(t); o.stop(t + 0.06);
+    }
   },
   // the traveler's sing: breath swell + resonant chord
   sing(extra) {
@@ -358,15 +426,17 @@ const A = {
     const c = this.ctx, t = c.currentTime;
     const o1 = c.createOscillator(); o1.type = 'sine';
     const o2 = c.createOscillator(); o2.type = 'sine';
-    const g2 = c.createGain(); g2.gain.value = 0.22;
-    const vib = c.createOscillator(); vib.frequency.value = 4.6;
-    const vg = c.createGain(); vg.gain.value = 7;          // cents of breath
+    const g2 = c.createGain(); g2.gain.value = 0.15;
+    const vib = c.createOscillator(); vib.frequency.value = 5.0;
+    const vg = c.createGain(); vg.gain.value = 4;          // cents of breath
     vib.connect(vg); vg.connect(o1.detune); vg.connect(o2.detune);
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.value = 1150; lp.Q.value = 0.5;           // round it like closed lips
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.075, t + 0.16);
-    o1.connect(g); o2.connect(g2); g2.connect(g);
-    this.route(g, 0.85, 0.4);
+    o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(lp);
+    this.route(lp, 0.85, 0.4);
     o1.start(t); o2.start(t); vib.start(t);
     this._hum = { o1, o2, g, vib };
   },
@@ -383,6 +453,37 @@ const A = {
     h.g.gain.setTargetAtTime(0.0001, t, 0.09);
     h.o1.stop(t + 0.5); h.o2.stop(t + 0.5); h.vib.stop(t + 0.5);
     this._hum = null;
+  },
+
+  // the treasure's sustained voice — joins you while you are in tune and
+  // fades the moment you drift, so harmony is something you can hear happen
+  harmStart() {
+    if (!this.ctx || this.ctx.state !== 'running' || this._harm) return;
+    const c = this.ctx, t = c.currentTime;
+    const o1 = c.createOscillator(); o1.type = 'sine';
+    const o2 = c.createOscillator(); o2.type = 'triangle';
+    const g2 = c.createGain(); g2.gain.value = 0.12;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    o1.connect(g); o2.connect(g2); g2.connect(g);
+    this.route(g, 0.9, 0.55);
+    o1.start(t); o2.start(t);
+    this._harm = { o1, o2, g };
+  },
+  harmSet(midi, level) {
+    if (!this._harm) return;
+    const t = this.ctx.currentTime, f = midiF(midi);
+    this._harm.o1.frequency.setTargetAtTime(f, t, 0.07);
+    this._harm.o2.frequency.setTargetAtTime(f, t, 0.07);
+    this._harm.g.gain.setTargetAtTime(Math.max(0.0001, 0.075 * level), t, 0.12);
+  },
+  harmStop() {
+    if (!this._harm) return;
+    const h = this._harm, t = this.ctx.currentTime;
+    h.g.gain.cancelScheduledValues(t);
+    h.g.gain.setTargetAtTime(0.0001, t, 0.15);
+    h.o1.stop(t + 0.7); h.o2.stop(t + 0.7);
+    this._harm = null;
   },
 
   // ---------------- instrument voices ----------------
@@ -531,50 +632,6 @@ const A = {
       case 'horn': this.vHorn(f, w, d, 0.12 * volScale, pan); break;
       case 'choir': this.vChoir(f, w, d, 0.1 * volScale, pan); break;
     }
-  },
-
-  // the full finale song, ~76s: intro → 10 sections in collectOrder → burst
-  playFinaleSong(t0) {
-    if (!this.ctx) return;
-    const rel = at => at - this.ctx.currentTime;
-    const SP = 4;   // intro seconds
-
-    // 1) intro swell: drone pad + bell sparkle
-    this.vChoir(midiF(62), rel(t0),        4.2, 0.06, 0);
-    this.vChoir(midiF(65), rel(t0 + 0.6),  4.0, 0.05, 0.1);
-    this.vBell (midiF(74), rel(t0 + 1.2),  3.0, 0.06, 0);
-
-    // 2) chord progression underneath, one chord per 2 sections (2*LOOPLEN)
-    const prog = [
-      [50,57,62,65],   // Dm
-      [46,53,58,62],   // Bb
-      [41,48,53,57],   // F
-      [48,55,60,64],   // C
-      [50,57,62,65,69] // Dm add9
-    ];
-    prog.forEach((ch, ci) => {
-      const at = t0 + SP + ci * 2 * LOOPLEN;
-      ch.forEach(m => this.vChoir(midiF(m), rel(at), 2 * LOOPLEN * 0.96, 0.055, 0));
-      this.vDrum(rel(at), 0.18, 0, ci === 4);
-    });
-
-    // 3) featured instrument per section, in COLLECT ORDER
-    collectOrder.forEach((idx, i) => {
-      const at = t0 + SP + i * LOOPLEN;
-      this.playPhrase(INSTRUMENTS[idx], 1.0, rel(at), IPANS[idx]);
-      this.vBell(midiF(74 + (i % 7)), rel(at + 0.05), 2.2, 0.05, IPANS[idx]);
-    });
-
-    // 4) final burst: all ten voices together + big chord + fireworks
-    const fb = t0 + SP + 10 * LOOPLEN;
-    collectOrder.forEach(idx =>
-      this.playPhrase(INSTRUMENTS[idx], 0.7, rel(fb), IPANS[idx]));
-    [50,57,62,65,69,74,77,81].forEach(m =>
-      this.vChoir(midiF(m), rel(fb), 3.2, 0.07, 0));
-    [74,81,86,89].forEach((m, k) =>
-      this.vBell(midiF(m), rel(fb + 0.3 + k * 0.18), 2.6, 0.07, (k % 2 ? 0.14 : -0.14)));
-    this.vDrum(rel(fb), 0.26, 0, true);
-    for (let b = 0; b < 4; b++) this.vShaker(rel(fb + b * 0.5), 0.05, (b % 2 ? 0.12 : -0.12));
   }
 };
 
@@ -612,24 +669,40 @@ const ACTS = [1, 1, 1, 1, 1, 2, 2, 2, 3, 3];
 const ACT_GATE = { 2: 5, 3: 8 };       // treasures of act n reveal themselves once litCount >= gate
 const GLYPHS = ['\u266A', '\u266B', '\u25CF', '\u25C8', '\u2726', '\u274B', '\u2727', '\u25C9', '\u2B23', '\u2742'];
 
-// trials are not rhythm games — they are listening deepened. the voice sings its
-// phrase once, then falls silent; you HOLD SPACE and let your hum rise to meet it
-// (hold longer = higher, release = drop). when your pitch meets one of the voice's
-// own notes, it harmonizes back and the sand around it begins to sing. sustained
-// harmony wakes the voice — there is no fail state, only resonance and its absence.
-// type 3 = echo voices (match any note of their learned contour, octave-free);
-// type 1 = breath voices (flute & horn): the wind visibly swells the sand and your
-// hum must ride the same swell — releasing on a rising wind lets it die.
-const BREATH = new Set([1, 7]);
+// trials are not rhythm games — they are listening deepened, and each voice
+// teaches a different way to listen. the voice sings its phrase once, then the
+// canyon goes quiet; you HOLD SPACE and let your hum rise to meet it (hold
+// longer = higher, release = fall). when your pitch meets the note it asks for,
+// it harmonizes back and the sand around it begins to sing. sustained harmony
+// wakes the voice — there is no fail state, only resonance and its absence.
+// one verb per voice, in wander order:
+const VERBS = ['pitch',      // 0 lyre        — find the note
+               'drift',      // 1 flute       — match a moving target
+               'direction',  // 2 frame drum  — the hum calls from one side; turn to it
+               'distance',   // 3 oud         — your hum sharpens as you near; stop where it locks
+               'rhythm',     // 4 wind bells  — breathe with the pulse, rest between
+               'harmony',    // 5 reed harp   — two notes at once; find the lower root
+               'silence',    // 6 coin shaker — still and quiet, or it hushes
+               'timing',     // 7 ram's horn  — silent until the wind peaks; sing into it
+               'polyphony',  // 8 deep drum   — two voices hum; the lower one is true
+               'chord'];     // 9 choir stone — the final exam: find the root of the chord
 const TRIAL = {
-  hold: { 3: 6.5, 1: 5.5 },      // seconds of sustained harmony the voice needs
-  tol: 1.7,                      // semitones of falloff around "in tune"
+  tol: 2,                        // semitones of "in tune" (octave-free for echo voices)
+  hold: 4,                       // seconds of sustained harmony the voice needs
   humBase: 52,                   // the traveler's hum climbs one octave (E3..E4) —
                                  // E sits outside the pentatonic voices, so rest
                                  // is always "away": you must rise to meet them
   riseT: 1.6, fallT: 0.75,       // breath in / breath out of the pitch glide
-  swellAmp: 3.0,                 // the wind's swell, in semitones
-  swellT: { 1: 5.2, 7: 4.2 }     // swell period per breath voice
+  driftAmp: 1.0, driftT: 8,      // flute: the wind's target drifts ±1 st over 8s
+  hornAmp: 3, hornT: 4,          // horn: the wind swells 3 st, rising only in silence
+  faceTol: 0.7,                  // drum: radians off-bearing before the trial listens
+  distRef: 14, distK: 0.55,      // oud: sweet radius (units) and semitones per unit
+  distRoot: 50,                  // oud: the resting tone (D3)
+  pulseNote: 74,                 // bells: the one note the chime breathes on
+  pulses: [0, 1.5, 3, 4.5, 6],   // bells: pulse grid in beats over the 8-beat bar
+  pulseW: 0.75,                  // bells: width of each pulse, in beats
+  lockT: 0.8, cycles: 3,         // horn: hold-to-lock time; cycles to win
+  trueMidi: 50, lureMidi: 57     // deep drum: the true voice (D) and the lure (A)
 };
 
 // =====================================================================
@@ -664,8 +737,10 @@ function wallH(w, lat) {
 }
 
 // the ten treasures, tucked into alcoves and ruins (deterministic)
+// the lyre waits nearest the spawn: "find the note" is the first lesson,
+// one degree of freedom — the bells' pulse lesson comes once the ear is warm
 const treasureSpots = [
-  [-98, 30], [95, 48], [-72, 88], [78, 100], [-18, 65],
+  [-18, 65], [95, 48], [-72, 88], [78, 100], [-98, 30],
   [38, 78], [-100, 128], [102, 140], [-8, 118], [-52, 148]
 ];
 const treasures = INSTRUMENTS.map((inst, i) => ({
@@ -715,23 +790,18 @@ const p = { x: 0, z: 5, vx: 0, vz: 0, singT: -9, stepAcc: 0, moving: false };
 const cam = { x: 0, z: -9, yh: 5.2 };
 let yaw = 0;
 
-// first-steps tutorial: the nearest sleeping voice leads the lesson — each
-// prompt waits for the real gesture, never a timer
-const tut = (() => {
-  let best = null, bd = 1e9;
-  for (const t of treasures) {
-    const d = Math.hypot(t.x - p.x, t.z - p.z);
-    if (d < bd) { bd = d; best = t; }
-  }
-  return { step: 0, t0: 0, moved: 0, turned: 0, lx: 0, lz: 5, lyaw: 0, target: best, done: false, fade: 1 };
-})();
 let started = false, time = 0, litCount = 0;
-let victoryT0 = -1, loopNext = 0;
+let victoryT0 = -1, loopNext = 0;    // victoryT0 = the moment the finale ritual began
 let warm = 0;                        // golden tint grows with each find
 const collectOrder = [];             // instrument indices in the order found
 let loreActive = -1;                 // index of currently visible lore fragment
 let mg = null;                       // active trial (listening commune) state, or null
-let trialEchoHint = false, trialBreathHint = false;   // one-time whispers per session
+const shownVerbs = new Set();        // verbs whose breath-hint has been whispered this session
+let finaleReady = false;             // ten voices home — the altar waits for the songkeeper
+let finale = null;                   // conducted finale state (see beginFinale)
+let ending = null;                   // null | 'completed' | 'left' — the unmarked choice
+let sanctuarySilent = false;         // after the final note, the canyon never sings again
+let glintPref = false;               // edge-glints toward humming hidden voices (S)
 const particles = [];
 const waves = [];
 const keys = {};
@@ -780,6 +850,38 @@ function saveGhost() {
 addEventListener('beforeunload', saveGhost);
 loadGhost();
 
+try { glintPref = localStorage.getItem('sandsong_glint') === '1'; } catch (e) {}
+
+// a walk half-finished is a walk worth resuming: the collection order itself is
+// the save file (order → litCount, RESTORE[], chapters all follow from it)
+const PROG_KEY = 'sandsong_progress_v1';
+function saveProgress() {
+  try {
+    localStorage.setItem(PROG_KEY, JSON.stringify({ v: 1, order: collectOrder.slice(), chapter: chapterLit.slice() }));
+  } catch (e) {}
+}
+function loadProgress() {
+  try {
+    const d = JSON.parse(localStorage.getItem(PROG_KEY) || 'null');
+    return d && Array.isArray(d.order) && d.order.length > 0 ? d : null;
+  } catch (e) { return null; }
+}
+function clearProgress() { try { localStorage.removeItem(PROG_KEY); } catch (e) {} }
+function restoreRun(d) {
+  for (const i of d.order) {
+    const t = treasures[i];
+    if (!t || t.found) continue;
+    t.found = true; t.foundT = time; t.flyK = 1; t.arrived = true;
+    RESTORE[i].lit = true; RESTORE[i].k = 1;
+    collectOrder.push(i);
+    litCount++;
+  }
+  if (Array.isArray(d.chapter)) d.chapter.forEach((c, i) => chapterLit[i] = !!c);
+  warm = litCount / 10;
+  updateHUD();
+  if (litCount >= 10) finaleReady = true;   // the ritual still waits at the altar
+}
+
 // ---------------- UI ----------------
 const titleEl = document.getElementById('title');
 const hintEl = document.getElementById('hint');
@@ -793,6 +895,8 @@ const secnameEl = document.getElementById('secname');
 const audioBtn = document.getElementById('audioBtn');
 const victoryEl = document.getElementById('victory');
 const vstatEl = document.getElementById('vstat');
+const volEl = document.getElementById('vol');
+const leaveBtn = document.getElementById('tLeave');
 
 // ---------------- language — picked on the title screen, remembered ----------------
 let lang = 'en';
@@ -809,14 +913,50 @@ function applyLang() {
       'you are the last songkeeper — walk, listen, and sing the voices home'][i], zhStory[i]);
   });
   document.querySelector('#title .press').textContent = L('click anywhere to begin', '点击任意处开始');
+  document.getElementById('contBtn').textContent = L('continue the walk', '继续行走');
+  document.getElementById('newBtn').textContent = L('begin anew', '重新开始');
   document.querySelectorAll('#title .langbtns button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
   document.querySelector('#harmony .label').textContent = L('Treasures Collected', '已唤醒的声音');
-  hintEl.textContent = L('wasd / arrows — wander  \u00b7  q e / drag \u2014 look  \u00b7  space \u2014 sing near a voice to begin its trial  \u00b7  inscribed stones tell the story',
-    'wasd / 方向键 — 行走 \u00b7 q e / 拖动 — 环顾 \u00b7 空格 — 在声音旁歌唱以开始试炼 \u00b7 石碑诉说着故事');
+  hintEl.textContent = baseHint();
   document.querySelector('.vin h2').textContent = L('SANCTUARY HARMONY', '圣所和声');
   document.querySelector('.vin .vsub').textContent = L('all ten voices sing as one', '十声合一');
   document.getElementById('stayBtn').textContent = L('keep wandering', '继续漫步');
   document.getElementById('againBtn').textContent = L('begin anew', '重新开始');
+  leaveBtn.textContent = L('step away', '离去');
+}
+// the only teaching text allowed: the bottom control line (and a breath-hint
+// when a voice first asks for a new verb). everything else lives in the world.
+function baseHint() {
+  return IS_TOUCH
+    ? L('drag \u2014 look \u00b7 arrows \u2014 wander \u00b7 \u266A \u2014 sing near a voice', '拖动 — 环顾 · 方向键 — 行走 · ♪ — 在声音旁歌唱')
+    : L('wasd / arrows \u2014 wander  \u00b7  q e / drag \u2014 look  \u00b7  space \u2014 sing near a voice  \u00b7  c \u2014 stone guide  \u00b7  s \u2014 voice glints', 'wasd / 方向键 — 行走 · q e / 拖动 — 环顾 · 空格 — 在声音旁歌唱 · c — 石之罗盘 · s — 声之微光');
+}
+// the breath-hint per verb: what SPACE means for this voice, nothing more
+// (L() at call time, so a language switch on the title screen carries over)
+function verbHint(v) {
+  switch (v) {
+    case 'pitch': return L('hold SPACE \u2014 your hum rises \u00b7 release \u2014 it falls', '按住 空格 — 声音升起 · 松开 — 声音落下');
+    case 'drift': return L('hold SPACE and feather it \u2014 the wind drifts, ride with it', '按住并微调 空格 — 风会漂移，随它起伏');
+    case 'direction': return L('it speaks in hits from one side \u2014 turn until they sit centered, then sing', '鼓点从一侧响起——转到鼓点居中，再歌唱');
+    case 'distance': return L('the oud is fretless \u2014 near, your hum sharpens; far, it slackens \u2014 stop where it rings true', '乌德无品——近则声升，远则声落——在琴音真切处停下');
+    case 'rhythm': return L('the chime breathes in pulses \u2014 hold SPACE with each, rest between', '风铃随节拍呼吸——随每一次脉动按住 空格，间隙里歇息');
+    case 'harmony': return L('two notes at once \u2014 find the lower one, the root beneath', '两个音同时响起——找到较低的那一个，底下的根音');
+    case 'silence': return L('stand still and the shimmer settles \u2014 the tone beneath it rings for you', '静立，碎响落定——底下的音色便为你响起');
+    case 'timing': return L('stay silent, let the wind rise \u2014 sing into its peak and hold', '先静默，任风升起——在风势顶点处歌唱并稳住');
+    case 'polyphony': return L('a doum and a tak sound from afar \u2014 follow the deeper one, sing it home', '远处传来"咚"与"嗒"——追随更深沉的那一声，把它唱回家');
+    case 'chord': return L('a chord \u2014 find the root that gathers the rest', '一声和弦——找到拢住其余的根音');
+  }
+  return '';
+}
+let hintTimer = 0;
+function showHint(txt, dur = 8) {
+  hintEl.textContent = txt;
+  hintEl.classList.add('show');
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => {
+    hintEl.textContent = baseHint();
+    if (time > 14) hintEl.classList.remove('show');
+  }, dur * 1000);
 }
 document.querySelectorAll('#title .langbtns button').forEach(b => {
   b.addEventListener('pointerdown', e => e.stopPropagation());
@@ -857,17 +997,28 @@ function showBanner(txt) {
   setTimeout(() => bannerEl.classList.remove('show'), 9000);
 }
 document.getElementById('stayBtn').addEventListener('click', () => victoryEl.classList.remove('show'));
-document.getElementById('againBtn').addEventListener('click', () => location.reload());
+document.getElementById('againBtn').addEventListener('click', () => { clearProgress(); location.reload(); });
 
-function start() {
+// resume row: offered only when a saved walk exists; begin-anew erases it
+const savedProg = loadProgress();
+if (savedProg) {
+  document.getElementById('resumeRow').style.display = 'flex';
+  document.querySelector('#title .press').style.display = 'none';
+}
+document.getElementById('contBtn').addEventListener('pointerdown', e => e.stopPropagation());
+document.getElementById('contBtn').addEventListener('click', e => { e.stopPropagation(); start(true); });
+document.getElementById('newBtn').addEventListener('pointerdown', e => e.stopPropagation());
+document.getElementById('newBtn').addEventListener('click', e => { e.stopPropagation(); clearProgress(); start(false); });
+
+function start(resume) {
   if (started) return;
   started = true;
-  tut.t0 = time;                       // the canyon begins its lesson
+  if (resume && savedProg) restoreRun(savedProg);
   audioBtn.classList.add('on');
   titleEl.classList.add('hidden');
   harmonyEl.classList.add('show');
   hintEl.classList.add('show');
-  setTimeout(() => hintEl.classList.remove('show'), 11000);
+  setTimeout(() => { if (time < 14) hintEl.classList.remove('show'); }, 11000);
   try {
     A.init();
     if (A.ctx) A.ctx.resume().catch(() => {});
@@ -877,10 +1028,20 @@ function start() {
   A.tone(midiF(81), { when: 0.4, vol: 0.05, dur: 3, wet: 0.8 });
 }
 function toggleAudio() {
-  if (!A.ctx) { start(); return; }
-  if (A.ctx.state === 'running') { A.ctx.suspend(); audioBtn.classList.remove('on'); }
-  else { A.ctx.resume().catch(() => {}); audioBtn.classList.add('on'); }
+  if (!A.ctx) { start(!!savedProg); return; }
+  if (A.ctx.state === 'running') {
+    A.ctx.suspend(); audioBtn.classList.remove('on');
+    showToast(L('the sound sleeps \u2014 press M to wake it', '乐声已静——按 M 唤醒'));
+  } else { A.ctx.resume().catch(() => {}); audioBtn.classList.add('on'); }
 }
+// master volume — persisted, applied live to the master gain
+volEl.value = masterVol;
+volEl.addEventListener('input', () => {
+  masterVol = parseFloat(volEl.value);
+  try { localStorage.setItem('sandsong_vol', String(masterVol)); } catch (e) {}
+  if (A.master) A.master.gain.setTargetAtTime(masterVol, A.ctx.currentTime, 0.04);
+});
+volEl.addEventListener('pointerdown', e => e.stopPropagation());
 
 // ---------------- projection ----------------
 function project(wx, wy, wz) {
@@ -896,28 +1057,37 @@ function project(wx, wy, wz) {
 // ---------------- input ----------------
 addEventListener('keydown', e => {
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
-  if (!started) { start(); return; }
+  if (!started) { start(!!savedProg); return; }
   keys[e.code] = true;
   if (e.repeat) return;
   if (e.code === 'Space') {
-    // while a trial sings with you, Space IS the hum — held, not tapped
+    // while a trial sings with you, Space IS the hum — held, not tapped.
+    // before the altar, Space is the conducting tap; after the chord fades,
+    // it is the final note — the ending answers to the same verb
     if (!mg) sing();
   }
   if (e.code === 'Escape' && mg && mg.phase !== 'win') {
-    mg = null; A.humStop();
-    showToast(L('the voice slips away\u2026', '声音悄然离去……'));
+    // no words — the voice simply stops answering, and the sand settles
+    mg = null; A.humStop(); A.harmStop();
+    A.tone(midiF(38), { vol: 0.03, dur: 1.8, wet: 0.9 });
   }
   if (e.code === 'KeyM') toggleAudio();
   if (e.code === 'KeyC') {
     compassPref = !compassPref;
-    showToast(compassPref ? L('the stone guide wakes', '石之罗盘苏醒了')
-      : L('you listen to the canyon instead', '你改而聆听峡谷'));
+    showHint(compassPref ? L('the stone guide wakes', '石之罗盘苏醒了')
+      : L('you listen to the canyon instead', '你改而聆听峡谷'), 4);
+  }
+  if (e.code === 'KeyS') {
+    glintPref = !glintPref;
+    try { localStorage.setItem('sandsong_glint', glintPref ? '1' : '0'); } catch (err) {}
+    showHint(glintPref ? L('hidden voices leave a glint at the edge of sight', '潜藏的声音会在视野边缘留下微光')
+      : L('you trust your ears alone', '你只信赖双耳'), 4);
   }
 });
 addEventListener('keyup', e => keys[e.code] = false);
 let dragging = false, dragX = 0;
 addEventListener('pointerdown', e => {
-  if (!started) { start(); return; }
+  if (!started) { start(!!savedProg); return; }
   dragging = true; dragX = e.clientX;
 });
 addEventListener('pointermove', e => {
@@ -931,13 +1101,48 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ---------------- touch: a wanderer's thumbs ----------------
+if (IS_TOUCH) document.body.classList.add('touch');
+function bindHold(id, code, onDown) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const down = e => {
+    e.preventDefault(); e.stopPropagation();
+    if (!started) { start(!!savedProg); return; }
+    keys[code] = true;
+    if (onDown) onDown();
+  };
+  const up = e => { e.preventDefault(); keys[code] = false; };
+  el.addEventListener('pointerdown', down);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('pointerleave', up);
+}
+bindHold('tU', 'KeyW'); bindHold('tD', 'KeyS');
+bindHold('tL', 'KeyA'); bindHold('tR', 'KeyD');
+bindHold('tSing', 'Space', () => { if (!mg) sing(); });
+// no keyboard on the trail — a small "step away" pill stands in for Escape
+leaveBtn.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  if (mg && mg.phase !== 'win') { mg = null; A.humStop(); A.harmStop(); A.tone(midiF(38), { vol: 0.03, dur: 1.8, wet: 0.9 }); }
+});
+
 // ---------------- singing: minigame start + sonar ----------------
 function sing() {
   if (time - p.singT < 0.8) return;
-  if (mg) return;                  // minigame owns Space now
+  if (mg) return;                  // a commune owns Space now — it is the hum
   p.singT = time;
   waves.push({ x: p.x, z: p.z, r: 0.6, max: 22 });
   spawnNotes();
+  if (finale && finale.ended && !ending) {
+    // the unmarked final note: one last sung breath, and the song is complete
+    ending = 'completed'; sanctuarySilent = true;
+    A.sing(midiF(62));
+    sparkleAt(ALTAR.x, 11, ALTAR.z, 42);
+    waves.push({ x: ALTAR.x, z: ALTAR.z, r: 0.6, max: 26 });
+    finale.showVictoryT = time + 2.6;
+    return;
+  }
   let best = null, bestD = 1e9;
   for (const t of treasures) {
     if (t.found) continue;
@@ -948,7 +1153,6 @@ function sing() {
     // a voice sleeps deeper than your song reaches — the canyon stays quiet
     A.tone(midiF(38), { when: 0.25, vol: 0.045, dur: 2.6, wet: 0.9 });
     waves.push({ x: best.x, z: best.z, r: 0.4, max: 9, faint: true });
-    showToast(L('something sleeps here, deeper than your song reaches\u2026', '这里沉睡着比你歌声更深的东西\u2026\u2026'));
     return;
   }
   if (best && bestD < 26) {
@@ -965,9 +1169,9 @@ function sing() {
     slide = { t0: time, dur: 2.4, dx: alongX ? 0 : dir, dz: alongX ? dir : 0 };
     A.slide();
     waves.push({ x: p.x, z: p.z, r: 0.5, max: 14 });
-    showToast(L('the dune carries you!', '沙丘载着你前行！'));
     return;
   }
+  if (finale) { finaleConduct(); return; }   // before the altar, a sung note is the baton
   A.sing(litCount > 0 ? midiF(62) : null);
   // sonar: unfound instruments answer from the ruins
   for (const t of treasures) {
@@ -986,20 +1190,43 @@ function sing() {
 
 function startTrial(t) {
   const inst = INSTRUMENTS[t.i];
-  const type = BREATH.has(t.i) ? 1 : 3;
+  const verb = VERBS[t.i];
   mg = {
-    ti: t.i, type, t0: time,
-    phase: 'intro',
-    contour: type === 3 ? [...new Set(inst.phrase.map(n => n[0]))].sort((a, b) => a - b) : null,
+    ti: t.i, verb, t0: time, phase: 'intro',
+    contour: [...new Set(inst.phrase.map(n => n[0]))].sort((a, b) => a - b),
     callIdx: 0, listenT0: 0, listenDur: 0, communeT0: 0, endT: 0,
-    climb: 0, q: 0, h: 0, hold: TRIAL.hold[type],
-    swPh: -0.25, swStall: 0, wasHold: false,
-    lastRespT: 0, lastCallT: 0, lastPullT: 0, lastDieT: 0,
-    yawTarget: Math.atan2(t.x - p.x, t.z - p.z)
+    climb: 0, q: 0, h: 0,
+    // the first voices are patient teachers: a wider tune, a shorter ask,
+    // and they call more often — later voices trust you with full listening
+    pat: litCount === 0 ? 2 : litCount === 1 ? 1 : 0,
+    tol: litCount === 0 ? 3 : litCount === 1 ? 2.6 : TRIAL.tol,
+    hold: litCount === 0 ? 2.6 : litCount === 1 ? 3.2 : TRIAL.hold,
+    callEvery: litCount === 0 ? 1.4 : litCount === 1 ? 2.1 : 2.8,
+    nudged: false, wasGood: false,
+    swPh: -0.25, wasHold: false,
+    cycles: 0, lockAcc: 0, decoyT: 0, rootHintT: 0,
+    lastRespT: 0, lastCallT: 0, lastPullT: 0, lastHumT: 0,
+    lure: null, yawTarget: Math.atan2(t.x - p.x, t.z - p.z)
   };
+  if (verb === 'direction') {
+    // begin facing away — the panned call itself must lead the turn
+    const b = normAng(mg.yawTarget - yaw);
+    yaw -= Math.sign(b || 1) * 1.1;
+  }
+  if (verb === 'polyphony') {
+    // a phantom voice hums the fifth away from the truth, across the sand
+    mg.lure = {
+      x: clamp(t.x + (t.x <= 0 ? 32 : -32), -102, 102),
+      z: clamp(t.z + 10, ZMIN + 12, ZMAX - 12)
+    };
+  }
   waves.push({ x: t.x, z: t.z, r: 0.4, max: 12 });
-  showToast(L(inst.name + ' \u2014 answer its call', inst.zh + '\u2014\u2014回应它的呼唤'));
 }
+
+// pitch-class distance — octave-free listening (echo voices)
+const pcDist = (a, b) => { const d = Math.abs(a - b) % 12; return Math.min(d, 12 - d); };
+// bearing wrapped to (-PI, PI] — how far the body must still turn
+const normAng = a => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
 
 // one long exchange of listening and singing — no timers, no fail state
 function updateTrial(dt) {
@@ -1009,9 +1236,11 @@ function updateTrial(dt) {
   const el = time - mg.t0;
 
   if (mg.phase === 'intro') {
-    // gently turn toward the voice
-    const dy = mg.yawTarget - yaw;
-    yaw += dy * 2.0 * dt;
+    // gently turn toward the voice — except the drum, whose lesson IS the turn
+    if (mg.verb !== 'direction') {
+      const dy = mg.yawTarget - yaw;
+      yaw += dy * 2.0 * dt;
+    }
     if (el > 1.2) {
       // the voice sings its phrase once — then the canyon goes quiet
       mg.phase = 'listen';
@@ -1025,15 +1254,28 @@ function updateTrial(dt) {
   if (mg.phase === 'listen') {
     if (time - mg.listenT0 > mg.listenDur) {
       mg.phase = 'commune'; mg.communeT0 = time; mg.lastCallT = time;
-      // the only teaching is a whisper — the mechanic is the same verb, deepened
-      if (mg.type === 1 && !trialBreathHint) {
-        trialBreathHint = true;
-        showToast(L('the wind breathes with the sand \u2014 hold SPACE and ride its swell',
-                    '风与沙同呼吸——按住 空格，乘着风的起伏'));
-      } else if (mg.type === 3 && !trialEchoHint) {
-        trialEchoHint = true;
-        showToast(L('the canyon falls silent \u2014 hold SPACE and let your voice rise to meet it',
-                    '峡谷安静下来——按住 空格，让你的声音升起应和'));
+      // the only teaching: one line of controls on the hint line, once per verb
+      if (!shownVerbs.has(mg.verb)) {
+        shownVerbs.add(mg.verb);
+        showHint(verbHint(mg.verb), 9);
+      }
+      // voices that offer more than a melody state their material once, plainly
+      const sp = A.panFor(t.x, t.z);
+      if (mg.verb === 'harmony') {
+        A._sp = sp;
+        A.vNote(inst.synth, midiF(50), 0, 2.4, 0.5, sp.pan);
+        A.vNote(inst.synth, midiF(57), 0.15, 2.2, 0.32, sp.pan);
+        A._sp = null;
+      } else if (mg.verb === 'chord') {
+        A._sp = sp;
+        [50, 53, 57, 62].forEach((m, k) => A.vChoir(midiF(m), k * 0.04, 3.2, 0.05, sp.pan));
+        A._sp = null;
+      } else if (mg.verb === 'polyphony' && mg.lure) {
+        // a doum and a tak: the true voice booms low from the stone, the
+        // phantom taps high from the sand — two skins of one lie
+        const lsp = A.panFor(mg.lure.x, mg.lure.z);
+        A._sp = sp; A.vNote('drumDeep', midiF(TRIAL.trueMidi), 0, 1.6, 0.6, sp.pan); A._sp = null;
+        A._sp = lsp; A.vNote('drum', midiF(TRIAL.lureMidi), 0.3, 1.1, 0.5, lsp.pan); A._sp = null;
       }
     }
     return;
@@ -1042,105 +1284,265 @@ function updateTrial(dt) {
     if (time > mg.endT) { awaken(t); mg = null; }
     return;
   }
+  updateCommune(dt);
+}
 
-  // ---- commune ----
-  const breath = mg.type === 1;
+// the commune: one switch, ten verbs — each a different way to listen
+function updateCommune(dt) {
+  const t = treasures[mg.ti];
+  const inst = INSTRUMENTS[mg.ti];
+  const verb = mg.verb;
   const holding = !!keys.Space;
+  const d = Math.hypot(t.x - p.x, t.z - p.z);
+  const sp = A.panFor(t.x, t.z);
+  const movingNow = Math.hypot(p.vx, p.vz) > 1.2;
+  const audioOn = A.ctx && A.ctx.state === 'running';
 
-  // the traveler's hum: held = rising, released = falling — a breath, not a button
-  mg.climb = clamp(mg.climb + (holding ? dt / TRIAL.riseT : -dt / TRIAL.fallT), 0, 1);
-  const hm = TRIAL.humBase + 12 * mg.climb;
-
-  // the wind's swell (breath voices): the target the sand itself displays
-  if (breath) {
-    if (mg.swStall > 0) mg.swStall -= dt;
-    else mg.swPh += dt / TRIAL.swellT[mg.ti];
+  // ---- the traveler's hum ----
+  // the oud's lesson is distance itself: near = sharp, far = flat
+  let hm;
+  if (verb === 'distance') {
+    hm = TRIAL.distRoot + clamp((TRIAL.distRef - d) * TRIAL.distK, -9, 9);
+  } else {
+    mg.climb = clamp(mg.climb + (holding ? dt / TRIAL.riseT : -dt / TRIAL.fallT), 0, 1);
+    hm = TRIAL.humBase + 12 * mg.climb;
   }
-  const swellN = breath ? 0.5 + 0.5 * Math.sin(TAU * mg.swPh) : 0;
-  const swellTarget = () => TRIAL.humBase + 6 + TRIAL.swellAmp * Math.sin(TAU * mg.swPh);
-  const nearestContour = () => mg.contour.reduce((best, m) => {
-    const d = Math.abs(hm - m) % 12, dw = Math.min(d, 12 - d);
-    const bd = Math.abs(hm - best) % 12, bw = Math.min(bd, 12 - bd);
-    return dw < bw ? m : best;
-  }, mg.contour[0]);
 
-  // how close are you to the voice? echo voices listen in pitch classes — your
-  // hum and its song may sit an octave apart, and that is still harmony;
-  // breath voices listen in absolute pitch: ride the swell itself
-  let dist;
-  if (breath) dist = Math.abs(hm - swellTarget());
-  else {
-    dist = 99;
-    for (const m of mg.contour) {
-      const d = Math.abs(hm - m) % 12;
-      dist = Math.min(dist, Math.min(d, 12 - d));
+  // ---- the target each voice asks for, and how far you sit from it ----
+  let dist = 99, targetM = mg.contour[0];
+  let face = 1, inPulse = true, windN = 0, root = true, nearerTrue = true, lureGain = 1;
+  switch (verb) {
+    case 'drift': {
+      mg.swPh += dt / TRIAL.driftT;               // the wind drifts whether you sing or not
+      targetM = TRIAL.humBase + 6 + TRIAL.driftAmp * Math.sin(TAU * mg.swPh);
+      dist = Math.abs(hm - targetM);              // breath voices listen in absolute pitch
+      break;
+    }
+    case 'timing': {
+      // the wind rises only in silence; your voice presses it gently back down
+      // (a hard press shuts the good window before a lock can gather)
+      if (holding) mg.swPh -= dt / TRIAL.hornT * 0.15;
+      else mg.swPh += dt / TRIAL.hornT;
+      windN = 0.5 + 0.5 * Math.sin(TAU * mg.swPh);
+      targetM = TRIAL.humBase + 6 + TRIAL.hornAmp * Math.sin(TAU * mg.swPh);
+      dist = Math.abs(hm - targetM);
+      break;
+    }
+    case 'direction': {
+      const b = normAng(Math.atan2(t.x - p.x, t.z - p.z) - yaw);
+      face = 1 - clamp(Math.abs(b) / TRIAL.faceTol, 0, 1);
+      for (const m of mg.contour) { const dd = pcDist(hm, m); if (dd < dist) { dist = dd; targetM = m; } }
+      break;
+    }
+    case 'distance': {
+      targetM = TRIAL.distRoot;
+      dist = pcDist(hm, TRIAL.distRoot);
+      break;
+    }
+    case 'rhythm': {
+      // one dimension only: breathe with the chime. the pulse itself is the
+      // note — asking for a pitch class too made the first lesson two-handed
+      targetM = TRIAL.pulseNote;
+      const beat = audioOn ? (A.ctx.currentTime / SPB) % 8 : (time / SPB) % 8;
+      inPulse = TRIAL.pulses.some(p0 => beat >= p0 && beat < p0 + TRIAL.pulseW);
+      dist = inPulse ? 0 : 99;
+      break;
+    }
+    case 'harmony': {
+      const dl = pcDist(hm, 50), du = pcDist(hm, 57);
+      if (dl <= du) { dist = dl; targetM = 50; }
+      else { dist = du; targetM = 57; root = false; }     // the upper fifth is the decoy
+      break;
+    }
+    case 'silence': {
+      targetM = mg.contour[0];
+      dist = pcDist(hm, targetM);
+      break;
+    }
+    case 'polyphony': {
+      targetM = TRIAL.trueMidi;
+      dist = pcDist(hm, TRIAL.trueMidi);
+      const dlure = mg.lure ? Math.hypot(mg.lure.x - p.x, mg.lure.z - p.z) : 1e9;
+      nearerTrue = d <= dlure;
+      lureGain = clamp((dlure - 8) / 18, 0.12, 1);
+      break;
+    }
+    case 'chord': {
+      for (const m of [50, 53, 57, 62]) {
+        const dd = pcDist(hm, m);
+        if (dd < dist) { dist = dd; targetM = m; root = m === 50 || m === 62; }
+      }
+      break;
+    }
+    default: {  // pitch — the first lesson: find any note of its song
+      for (const m of mg.contour) { const dd = pcDist(hm, m); if (dd < dist) { dist = dd; targetM = m; } }
     }
   }
-  const q = 1 - clamp(dist / TRIAL.tol, 0, 1);
+
+  let q = 1 - clamp(dist / mg.tol, 0, 1);
+  // each voice tempers the match in its own way
+  if (verb === 'direction') q *= face;                          // sing TO it
+  if (!root && (verb === 'harmony' || verb === 'chord')) q = Math.min(q, 0.45);   // "almost right"
+  if (verb === 'polyphony' && !nearerTrue) q = 0;               // the lure owns you
+  if (verb === 'silence' && movingNow) q = Math.min(q, 0.3);    // steps scatter the tone
   mg.q = lerp(mg.q, q, 1 - Math.pow(0.002, dt));
 
   // harmony gathers while you meet the voice, settles while you drift —
   // silence never counts: only an actually sung, in-tune breath does
-  const good = holding && q >= 0.55;
-  mg.h = clamp(mg.h + (good ? 0.45 + 0.75 * q
-                          : -(breath && mg.swStall > 0 ? 0.9 : 0.4)) * dt, 0, mg.hold);
+  let good = holding && q > 0;
+  if (verb === 'direction') good = good && face > 0.5;
+  if (verb === 'rhythm') good = good && inPulse;
+  if (verb === 'timing') {
+    // the horn counts in cycles, not seconds: three locked breaths win,
+    // and a half-earned lock drains slowly rather than vanishing
+    good = holding && q > 0 && windN > 0.55;
+    mg.lockAcc = clamp(mg.lockAcc + (good ? dt : -dt * 0.6), 0, TRIAL.lockT);
+    if (good && mg.lockAcc >= TRIAL.lockT) {
+      mg.cycles++;
+      mg.lockAcc = 0; mg.swPh = -0.25;
+      sparkleAt(t.x, groundH(t.x, t.z) + 1, t.z, 14);
+      waves.push({ x: t.x, z: t.z, r: 0.5, max: 13 });
+      puff(t.x, t.z, 8);
+      A.tone(midiF(62 + mg.cycles * 3), { vol: 0.05, dur: 2.2, wet: 0.85 });
+    }
+    mg.h = mg.cycles * (mg.hold / TRIAL.cycles);
+  } else {
+    mg.h = clamp(mg.h + (good ? 0.45 + 0.75 * q : -0.4) * dt, 0, mg.hold);
+  }
+  // the first voice coaches in plain words, once — never an overlay, just a
+  // whisper on the hint line: confirmation when heard, mechanics if lost
+  if (mg.pat === 2) {
+    if (good && !mg.wasGood) {
+      mg.wasGood = true;
+      showHint(L('the voice hears you \u2014 stay with it', '它听见你了——陪着它'), 5);
+    }
+    if (!mg.wasGood && !mg.nudged && time - mg.communeT0 > 10) {
+      mg.nudged = true;
+      showHint(L('your hum rises while SPACE is held \u2014 release, and it falls',
+        '按住 空格 哼唱会升起——松开，声音便落下'), 8);
+    }
+  }
   if (mg.h >= mg.hold) {                       // the voice remembers itself
     mg.phase = 'win'; mg.endT = time + 1.1;
-    A.humStop();
+    A.humStop(); A.harmStop();
     sparkleAt(t.x, groundH(t.x, t.z) + 1, t.z, 34);
     waves.push({ x: t.x, z: t.z, r: 0.6, max: 20 });
     return;
   }
 
-  // letting go of a truly locked ascent lets the wind die — the swell stalls,
-  // the sand settles; small corrections never break the breath
-  if (breath && mg.wasHold && !holding && mg.q > 0.55 &&
-      Math.cos(TAU * mg.swPh) > 0.6 && time - mg.lastDieT > 2.2) {
-    mg.lastDieT = time; mg.swStall = 1.4;
-    A.tone(midiF(38), { when: 0.05, vol: 0.04, dur: 1.6, wet: 0.9 });
-    puff(t.x, t.z, 6);
-  }
-  mg.wasHold = holding;
-
   // the voice responds in real time — harmonizing when met, pulling away when not
+  const panHard = verb === 'direction' ? clamp(Math.sin(normAng(Math.atan2(t.x - p.x, t.z - p.z) - yaw)) * 1.4, -1, 1) : sp.pan;
   if (holding) {
     A.humStart(); A.humSet(hm);
-    if (good && time - mg.lastRespT > 0.55) {
-      mg.lastRespT = time;
-      const sp = A.panFor(t.x, t.z);
+    if (good) {
+      // a sustained duet: the treasure sings with you and fades when you drift
       A._sp = sp;
-      const respM = breath ? swellTarget() + (mg.ti === 1 ? 12 : 0) : nearestContour();
-      A.vNote(inst.synth, midiF(respM), 0, 0.5, 0.4 + 0.5 * q, sp.pan);
+      A.harmStart(); A.harmSet(verb === 'rhythm' ? hm : targetM, 0.35 + 0.65 * q);
       A._sp = null;
-    }
+      if (time - mg.lastRespT > 0.55) {        // and in its own timbre, in notes
+        mg.lastRespT = time;
+        A._sp = sp;
+        A.vNote(inst.synth, midiF(targetM), 0, 0.5, 0.4 + 0.5 * q, sp.pan);
+        A._sp = null;
+      }
+    } else A.harmStop();
   } else {
-    A.humStop();
-    // quiet, it keeps calling its melody, note by note — an invitation to answer
-    if (time - mg.lastCallT > 2.8) {
+    A.humStop(); A.harmStop();
+    // while you are silent, each voice keeps calling in its own fashion
+    if (audioOn && time - mg.lastCallT > mg.callEvery) {
+      const hushed = verb === 'silence' && movingNow;   // steps scatter the shaker's tone
       mg.lastCallT = time;
-      const sp = A.panFor(t.x, t.z);
-      A._sp = sp;
-      const callM = breath ? swellTarget() + (mg.ti === 1 ? 12 : 0)
-                           : mg.contour[mg.callIdx++ % mg.contour.length];
-      A.vNote(inst.synth, midiF(callM), 0, 0.9, 0.45, sp.pan);
-      A._sp = null;
+      if (!hushed) {
+        switch (verb) {
+          case 'rhythm': case 'timing':
+            break;                                   // the chime pulses / the horn blows on their own clocks
+          case 'drift':
+            A._sp = sp; A.vNote(inst.synth, midiF(targetM), 0, 1.2, 0.4, sp.pan); A._sp = null;
+            break;
+          case 'distance':
+            A._sp = sp; A.vNote(inst.synth, midiF(TRIAL.distRoot), 0, 1.4, 0.5, sp.pan); A._sp = null;
+            break;
+          case 'harmony':
+            A._sp = sp;
+            A.vNote(inst.synth, midiF(50), 0, 1.2, 0.5, sp.pan);
+            A.vNote(inst.synth, midiF(57), 0.1, 1.1, 0.3, sp.pan);
+            A._sp = null;
+            break;
+          case 'chord':
+            A._sp = sp;
+            [50, 53, 57, 62].forEach(m => A.vNote(inst.synth, midiF(m), 0, 1.6, 0.16, sp.pan));
+            A._sp = null;
+            break;
+          case 'polyphony':
+            A._sp = sp; A.vNote('drumDeep', midiF(TRIAL.trueMidi), 0, 1.3, 0.55, sp.pan); A._sp = null;
+            break;
+          case 'direction': {
+            // the drum speaks in figures of hits, not melody — a processional
+            // rhythm, hard-panned so the ear alone can find its side
+            [[0, 0.5], [0.24, 0.32], [0.48, 0.32], [0.86, 0.38]].forEach(([w, v]) => {
+              A._sp = sp; A.vNote('drum', midiF(45), w, 0.5, v, panHard); A._sp = null;
+            });
+            break;
+          }
+          case 'silence': {
+            // shaken coins settle: grains land softer and softer until the
+            // last one rings alone — a tiny bell, the note beneath the shimmer
+            [0, 0.16, 0.36].forEach((w, k) => {
+              A._sp = sp; A.vNote(inst.synth, 0, w, 0, 0.5 - k * 0.12, sp.pan); A._sp = null;
+            });
+            A._sp = sp; A.vNote('bell', midiF(targetM), 0.6, 1.4, 0.4, sp.pan); A._sp = null;
+            break;
+          }
+          default:
+            A._sp = sp;
+            A.vNote(inst.synth, midiF(mg.contour[mg.callIdx++ % mg.contour.length]), 0, 0.9, 0.45, sp.pan);
+            A._sp = null;
+        }
+      }
     }
   }
+  // rhythm: the chime's pulse grid, bar-locked — the pattern to breathe with
+  if (verb === 'rhythm' && audioOn && inPulse && time - mg.lastRespT > 0.55) {
+    mg.lastRespT = time;
+    A._sp = sp; A.vNote(inst.synth, midiF(TRIAL.pulseNote), 0, 0.55, 0.4, sp.pan); A._sp = null;
+  }
+  // timing: the horn blows with the rising wind — a guide that only exists unasked
+  if (verb === 'timing' && audioOn && !holding && time - mg.lastRespT > 0.45) {
+    mg.lastRespT = time;
+    A._sp = sp; A.vNote('horn', midiF(targetM), 0, 0.6, 0.16 + 0.3 * windN, sp.pan); A._sp = null;
+  }
+  // polyphony: the tak rolls on regardless, softening as you near the truth
+  if (verb === 'polyphony' && audioOn && mg.lure && time - mg.lastHumT > LOOPLEN) {
+    mg.lastHumT = time;
+    const lsp = A.panFor(mg.lure.x, mg.lure.z);
+    [0, 0.55, 1.25].forEach(w => {
+      A._sp = lsp; A.vNote('drum', midiF(TRIAL.lureMidi), w, 0.45, 0.4 * lureGain, lsp.pan); A._sp = null;
+    });
+  }
+  // matching the decoy earns nothing — sustain it and the voice shows the root
+  if ((verb === 'harmony' || verb === 'chord') && holding && !root && q > 0) {
+    mg.decoyT += dt;
+    if (mg.decoyT > 4 && time - mg.rootHintT > 6) {
+      mg.decoyT = 0; mg.rootHintT = time;
+      A._sp = sp; A.vNote(inst.synth, midiF(50), 0, 1.2, 0.6, sp.pan); A._sp = null;
+    }
+  } else if (verb === 'harmony' || verb === 'chord') mg.decoyT = 0;
   // sing far from its song and the voice pulls away — a low, unanswered thrum
-  if (holding && q < 0.25 && time - mg.lastPullT > 2.4) {
+  if (holding && verb !== 'rhythm' && q < 0.25 && time - mg.lastPullT > 2.4) {
     mg.lastPullT = time;
     A.tone(midiF(38), { vol: 0.032, dur: 1.6, wet: 0.9 });
   }
 
-  // the sand itself sings: motes lift around the voice as harmony locks in,
-  // and for breath voices they drift with the wind's swell
-  const moteK = breath ? 0.14 + 0.34 * swellN + mg.q * 0.25 : mg.q * 0.5;
+  // the sand itself sings: motes lift around the voice as harmony locks in;
+  // the drifting and horn winds carry them with the swell
+  const swellN = verb === 'drift' || verb === 'timing' ? 0.5 + 0.5 * Math.sin(TAU * mg.swPh) : 0;
+  const moteK = ((swellN ? 0.14 + 0.34 * swellN + mg.q * 0.25 : mg.q * 0.5)) * PK;
   if (Math.random() < moteK) {
     const a = rand(TAU), r = rand(2.2, 4.2);
     particles.push({
       kind: 'spark',
       x: t.x + Math.cos(a) * r, y: groundH(t.x, t.z) + rand(0.1, 0.5), z: t.z + Math.sin(a) * r,
-      vx: breath ? Math.sin(TAU * mg.swPh) * 1.3 : rand(-0.4, 0.4),
+      vx: swellN ? Math.sin(TAU * mg.swPh) * 1.3 : rand(-0.4, 0.4),
       vy: rand(0.9, 2.1), vz: rand(-0.4, 0.4),
       life: rand(0.9, 1.6), life0: 1.6, size: rand(0.05, 0.12), ph: rand(TAU)
     });
@@ -1154,9 +1556,8 @@ function awaken(t) {
   litCount++;
   warm = litCount / 10;
   updateHUD();
-  showToast(L(INSTRUMENTS[t.i].name + ' joins the song', INSTRUMENTS[t.i].zh + '加入了歌声'));
-  if (litCount === 1) setTimeout(() => showToast(
-    L('nine voices remain \u2014 follow their hums and sing them home', '还剩九个声音——循着哼唱，把它们唱回家')), 3800);
+  saveProgress();                            // the walk is remembered
+  // no words — the voice sings itself home, and the shrine reshapes
   A.playPhrase(INSTRUMENTS[t.i], 1.15, 0.15, A.panFor(t.x, t.z).pan, A.panFor(t.x, t.z));
   A.tone(midiF(62) * 2, { when: 0.9, vol: 0.05, dur: 3.5, wet: 0.85 });
   sparkleAt(t.x, groundH(t.x, t.z) + 1, t.z, 26);
@@ -1167,20 +1568,11 @@ function awaken(t) {
   if (!chapterLit[ch] && treasures[2 * ch].found && treasures[2 * ch + 1].found) {
     chapterLit[ch] = true;
     A.tone(midiF(62 + HUMINT[t.i]) * 2, { when: 1.2, vol: 0.04, dur: 4, wet: 0.95 });
-    setTimeout(() => showToast(L('a stone remembers\u2026', '一块石头记起了往事\u2026\u2026')), 2800);
   }
   // the song deepens: new voices wake as the light grows
-  if (litCount === ACT_GATE[2]) {
-    showBanner(L('THE CANYON STIRS', '峡谷躁动'));
-    showToast(L('new voices shimmer where your song falls \u2014 sing to wake them', '你的歌声落下之处，新的声音微光闪烁——用歌声唤醒它们'));
-  }
-  if (litCount === ACT_GATE[3]) {
-    showBanner(L('THE DEEP SANCTUARY WAKES', '深处圣所苏醒'));
-    showToast(L('the oldest voices are listening now', '最古老的声音正在聆听'));
-  }
-  if (litCount === 2) setTimeout(() =>
-    showToast(L('the compass sleeps now \u2014 follow the songs (C recalls it)', '罗盘已安睡——循着歌声前行（按 C 可唤回）')), 3200);
-  if (litCount === 10) beginVictory();
+  if (litCount === ACT_GATE[2]) showBanner(L('THE CANYON STIRS', '峡谷躁动'));
+  if (litCount === ACT_GATE[3]) showBanner(L('THE DEEP SANCTUARY WAKES', '深处圣所苏醒'));
+  if (litCount === 10) finaleReady = true;   // the altar waits for its songkeeper
 }
 
 // every journey names its own song, drawn from the order the voices came home
@@ -1195,37 +1587,118 @@ function sanctuarySongTitle(order) {
   return L(`${adj} ${noun}`, `${adjZh}${nounZh}`);
 }
 
-function beginVictory() {
+// ---------------- the conducted finale ----------------
+// ten voices approach the altar one at a time, in the order they came home.
+// each hovers a breath away, then waits — the player's sung note is the baton.
+// mistime and the voice circles once and comes round again; there is no fail.
+function beginFinale() {
   victoryT0 = time;
-  const s = Math.floor(time);
-  vstatEl.textContent = L(`completed in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, `用时 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} 完成`);
+  finale = {
+    order: [...collectOrder], idx: 0, st: 'wait', waitT: time + 2.2,
+    arrT: 0, dur: 0, circleT: 0, rel: [],
+    pos: { x: ALTAR.x, y: 11, z: ALTAR.z }, hov: { x: ALTAR.x, y: 11, z: ALTAR.z },
+    ended: false, endT: 0, showVictoryT: 0, leaveT: 0
+  };
+  // the journey has already written its own title
   document.getElementById('vsong').innerHTML =
     L(`\u201CThe ${sanctuarySongTitle(collectOrder)}\u201D`, `\u300A${sanctuarySongTitle(collectOrder)}\u300B`) + '<br>' +
     `<span style="letter-spacing:5px;opacity:.95;font-style:normal">${collectOrder.map(i => GLYPHS[i]).join(' ')}</span><br>` +
     collectOrder.map(i => INSTR(i)).join('  \u2192  ');
-  if (A.ctx) A.playFinaleSong(A.ctx.currentTime + 0.8);
-  showBanner(L('THE SANCTUARY SINGS', '圣所放声歌唱'));
-  showToast(L('every voice of the shrine, together as one', '圣殿的所有声音，合而为一'));
-  // victory overlay appears after the finale song (~76s) — triggered in update()
+  showBanner(L('THE ALTAR WAITS', '祭坛在等待'));
+}
+// a voice sets out from its socket; it arrives on the beat of the canyon
+function finaleSend() {
+  const f = finale;
+  f.st = 'in';
+  f.dur = LOOPLEN;                           // one full bar of approach
+  f.arrT = (Math.floor(time / LOOPLEN) + 1) * LOOPLEN + 1.2;
+  if (f.arrT - time < 3) f.arrT += LOOPLEN;
+  f.lastCueT = 0;
+}
+// the sung note lands: the voice rises into the altar and joins the chord
+function finaleRelease() {
+  const f = finale;
+  const i = f.order[f.idx];
+  f.rel.push(i);
+  const sp = A.panFor(ALTAR.x, ALTAR.z);
+  A._sp = sp;
+  A.playPhrase(INSTRUMENTS[i], 0.95, 0, sp.pan, sp);
+  A._sp = null;
+  A.tone(midiF(74 + i) * 2, { when: 0.5, vol: 0.04, dur: 3.2, wet: 0.9 });
+  sparkleAt(f.pos.x, f.pos.y, f.pos.z, 30);
+  sparkleAt(ALTAR.x, 11, ALTAR.z, 16);
+  waves.push({ x: ALTAR.x, z: ALTAR.z, r: 0.6, max: 24 });
+  f.idx++;
+  if (f.idx >= f.order.length) { f.st = 'done'; f.ended = true; f.endT = time; }
+  else { f.st = 'wait'; f.waitT = time + 1.7; }
+}
+// Space before the altar is the baton — one sung note, on the arrival breath
+function finaleConduct() {
+  const f = finale;
+  if (f.ended) return;                       // handled as the unmarked final note
+  if (f.st === 'in' && Math.abs(time - f.arrT) <= 0.6) finaleRelease();
+  else if (f.st === 'in') {                  // mistimed — the voice circles once
+    f.st = 'circle'; f.circleT = time;
+    A.tone(midiF(38), { vol: 0.03, dur: 1.4, wet: 0.9 });
+  }
+}
+function updateFinale(dt) {
+  const f = finale;
+  if (!f || f.ended) return;
+  // the hover point floats between the traveler and the altar
+  const dx = p.x - ALTAR.x, dz = p.z - ALTAR.z, dd = Math.hypot(dx, dz) || 1;
+  f.hov.x = ALTAR.x + dx / dd * 9;
+  f.hov.z = ALTAR.z + dz / dd * 9;
+  f.hov.y = groundH(f.hov.x, f.hov.z) + 2.4;
+  if (f.st === 'wait' && time > f.waitT) finaleSend();
+  if (f.st === 'in') {
+    // a curved descent from the altar crystal to the hover point
+    const k = clamp(1 - (f.arrT - time) / f.dur, 0, 1);
+    const e = k * k * (3 - 2 * k);           // smoothstep — the voice glides
+    f.pos.x = lerp(ALTAR.x, f.hov.x, e) + Math.sin(k * Math.PI * 2) * 3 * (1 - k);
+    f.pos.z = lerp(ALTAR.z, f.hov.z, e);
+    f.pos.y = lerp(11, f.hov.y, e) + Math.sin(k * Math.PI) * 2.5;
+    // the voice clears its throat as it nears — the cue to breathe in
+    if (k > 0.55 && time - (f.lastCueT || 0) > 1.1) {
+      f.lastCueT = time;
+      const sp = A.panFor(f.pos.x, f.pos.z);
+      A._sp = sp;
+      A.vNote(INSTRUMENTS[f.order[f.idx]].synth, midiF(62 + HUMINT[f.order[f.idx]]), 0, 0.9,
+        0.1 + 0.25 * k, sp.pan);
+      A._sp = null;
+    }
+    if (time > f.arrT + 0.6) {               // the breath passed unheard — circle
+      f.st = 'circle'; f.circleT = time;
+      A.tone(midiF(38), { vol: 0.03, dur: 1.4, wet: 0.9 });
+    }
+  } else if (f.st === 'circle') {
+    // one slow ring around the hover point, then it comes round again
+    const k = (time - f.circleT) / 2.8;
+    const a = k * TAU;
+    f.pos.x = f.hov.x + Math.cos(a) * 3.4;
+    f.pos.z = f.hov.z + Math.sin(a) * 2.2;
+    f.pos.y = f.hov.y + Math.sin(k * Math.PI) * 0.8;
+    if (k >= 1) finaleSend();
+  }
 }
 
 // ---------------- particles ----------------
 function spawnNotes() {
-  for (let i = 0; i < 5; i++) particles.push({
+  for (let i = 0; i < 5 * PK; i++) particles.push({
     kind: 'note', x: p.x + rand(-1, 1), y: groundH(p.x, p.z) + 1.6, z: p.z + rand(-1, 1),
     vx: rand(-0.5, 0.5), vy: rand(0.7, 1.4), vz: rand(-0.5, 0.5),
     life: rand(1.4, 2.2), life0: 2.2, size: rand(0.8, 1.2), ph: rand(TAU)
   });
 }
 function sparkleAt(x, y, z, n) {
-  for (let i = 0; i < n; i++) particles.push({
+  for (let i = 0; i < n * PK; i++) particles.push({
     kind: 'spark', x: x + rand(-1.5, 1.5), y: y + rand(-1, 1.5), z: z + rand(-1.5, 1.5),
     vx: rand(-1, 1), vy: rand(0.8, 2.4), vz: rand(-1, 1),
     life: rand(0.9, 2), life0: 2, size: rand(0.05, 0.16), ph: rand(TAU)
   });
 }
 function puff(x, z, n) {
-  for (let i = 0; i < n; i++) particles.push({
+  for (let i = 0; i < n * PK; i++) particles.push({
     kind: 'puff', x: x + rand(-0.4, 0.4), y: groundH(x, z) + 0.1, z: z + rand(-0.4, 0.4),
     vx: rand(-0.8, 0.8), vy: rand(0.3, 0.9), vz: rand(-0.8, 0.8),
     life: rand(0.4, 0.8), life0: 0.8, size: rand(0.15, 0.3)
@@ -1242,64 +1715,21 @@ function sandTrail(spd) {
   });
 }
 // ambient dust drifting in a volume around the camera
-const dusts = Array.from({ length: 55 }, () => ({ x: rand(-30, 30), y: rand(0.2, 5), z: rand(4, 70), ph: rand(TAU), s: rand(0.02, 0.06) }));
+const dusts = Array.from({ length: REDUCED ? 30 : 55 }, () => ({ x: rand(-30, 30), y: rand(0.2, 5), z: rand(4, 70), ph: rand(TAU), s: rand(0.02, 0.06) }));
 
 // =====================================================================
 //  UPDATE
 // =====================================================================
-// ---------------- first-steps tutorial ----------------
-// walk → look → follow the nearest voice → sing → echo → outro; every step
-// advances on the player's real action, and the trial itself does the teaching
-function tutNext() { tut.step++; tut.t0 = time; }
-function updateTut(dt) {
-  if (tut.done || !started) return;
-  if (litCount > 0 && tut.step < 5) { tut.step = 5; tut.t0 = time; }     // a voice found out of order — outro
-  if (mg && (tut.step === 2 || tut.step === 3)) { tut.step = 4; tut.t0 = time; }
-  const tp = tut.target;
-  switch (tut.step) {
-    case 0:                                   // walk
-      tut.moved += Math.hypot(p.x - tut.lx, p.z - tut.lz);
-      if (tut.moved > 6) tutNext();
-      break;
-    case 1:                                   // look
-      tut.turned += Math.abs(yaw - tut.lyaw);
-      if (tut.turned > 0.7 || tut.moved > 16) tutNext();
-      break;
-    case 2:                                   // follow the hum to the voice
-      if (tp && Math.hypot(tp.x - p.x, tp.z - p.z) < 16) tutNext();
-      break;
-    case 3:                                   // sing
-      if (tp && tp.found) tutNext();
-      break;
-    case 4:                                   // the trial speaks for itself
-      if (!mg) {
-        if ((tp && tp.found) || litCount > 0) tutNext();
-        else { tut.step = 3; tut.t0 = time; } // the trial slipped away — invite another song
-      }
-      break;
-    case 5:                                   // what the song changed — hold, then the wider call
-      if (time - tut.t0 > 5.5) tutNext();
-      break;
-    case 6:                                   // final whisper, then silence
-      tut.fade = Math.max(0, tut.fade - dt / 4);
-      if (tut.fade <= 0) tut.done = true;
-      break;
-  }
-  tut.lx = p.x; tut.lz = p.z; tut.lyaw = yaw;
-}
-
 function update(dt) {
-  if (started) updateTut(dt);
-  // --- look ---
-  if (!mg) {
-    const turn = (keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0);
-    yaw += turn * 1.5 * dt;
-    yaw = clamp(yaw, -1.05, 1.05);
-  }
+  // --- look: the head is never held — even mid-commune you may turn ---
+  const turn = (keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0);
+  yaw += turn * 1.5 * dt;
+  yaw = clamp(yaw, -1.05, 1.05);
 
-  // --- movement (view-relative), bounded to the canyon ---
+  // --- movement (view-relative), bounded to the canyon — some voices
+  //     ask you to walk in, hold still, or cross the sand mid-trial ---
   let iF, iR;
-  if (mg || slide) { iF = 0; iR = 0; }
+  if (slide) { iF = 0; iR = 0; }
   else {
     iF = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     iR = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -1346,11 +1776,11 @@ function update(dt) {
   p.moving = Math.hypot(p.vx, p.vz) > 1.5;
 
   // gentle nudge: if the wanderer hasn't sung in a long while, remind them
-  // that singing makes the nearby voices answer
-  if (started && !mg && victoryT0 < 0 && litCount < 10 &&
+  // on the one line the game ever speaks — the bottom control line
+  if (started && !mg && !finale && victoryT0 < 0 && litCount < 10 &&
       time - p.singT > 45 && time - lastSingTipT > 75) {
     lastSingTipT = time;
-    showToast(L('press SPACE to sing \u2014 nearby voices will answer', '按 空格 歌唱——附近的声音会回应你'));
+    showHint(L('press SPACE to sing \u2014 nearby voices will answer', '按 空格 歌唱——附近的声音会回应你'), 6);
   }
 
   if (started && p.moving) {
@@ -1358,9 +1788,15 @@ function update(dt) {
     p.stepAcc += spdNow * dt;
     if (p.stepAcc > (spdNow > 9 ? 1.6 : 2.1)) {
       p.stepAcc = 0;
-      A.footstep();
-      puff(p.x, p.z, spdNow > 9 ? 3 : 2);
-      sandTrail(spdNow);
+      // walls throw the step back; flagged stone rings underfoot
+      const onStone = Math.hypot(p.x - ALTAR.x, p.z - ALTAR.z) < 30;
+      const nearWall = Math.max(
+        clamp((Math.abs(p.x) - (XMAX - 14)) / 14, 0, 1),
+        clamp((p.z - (ZMAX - 14)) / 14, 0, 1),
+        clamp((ZMIN + 14 - p.z) / 14, 0, 1));
+      A.footstep(onStone ? 'stone' : 'sand', nearWall);
+      puff(p.x, p.z, (spdNow > 9 ? 3 : 2) * PK);
+      if (!REDUCED) sandTrail(spdNow);
     }
   }
   // the wind answers your speed
@@ -1371,25 +1807,38 @@ function update(dt) {
   }
 
   // --- camera: follows with a HARD screen clamp (player never leaves view) ---
-  camBack = lerp(camBack, victoryT0 >= 0 ? 12.5 : 9, 1 - Math.pow(0.1, dt));
+  // walk away from a finished sanctuary and the world widens behind you
+  const pullback = ending === 'left' ? 6.5 : 0;
+  camBack = lerp(camBack, victoryT0 >= 0 ? 12.5 + pullback : 9, 1 - Math.pow(0.1, dt));
   cam.z = p.z - camBack;
   cam.x = lerp(cam.x, p.x, 1 - Math.pow(0.008, dt));
   const sPlayer = F / camBack;
   const maxXoff = 0.22 * W / sPlayer;
   cam.x = clamp(cam.x, p.x - maxXoff, p.x + maxXoff);
-  const lift = victoryT0 >= 0 ? Math.min(4, (time - victoryT0) * 0.06) : 0;
+  const lift = victoryT0 >= 0 && !REDUCED
+    ? Math.min(4, (time - victoryT0) * 0.06) + (ending === 'left' ? 3 : 0) : 0;
   cam.yh = lerp(cam.yh, groundH(cam.x, cam.z) + 4.2 + lift, 1 - Math.pow(0.05, dt));
 
   // --- the song: synced layers, scheduled on the audio clock ---
   if (started && A.ctx && A.ctx.state === 'running') {
     const now = A.ctx.currentTime;
-    const finaleActive = victoryT0 >= 0 && (time - victoryT0) < 78;
-    if (!finaleActive) {
+    if (finale && !finale.ended) {
+      // the conducted chord: only the released voices sing, bar after bar,
+      // while the canyon holds its breath for the ones still coming home
+      if (finale.rel.length) {
+        if (loopNext < now - 0.05) loopNext = now + 0.12;
+        while (loopNext < now + 0.9) {
+          for (const i of finale.rel)
+            A.playPhrase(INSTRUMENTS[i], 0.6, loopNext - now, IPANS[i]);
+          loopNext += LOOPLEN;
+        }
+      }
+    } else if (!sanctuarySilent) {
       const found = treasures.filter(t => t.found);
       if (found.length && loopNext < now - 0.05) loopNext = now + 0.12;
-      // once the sanctuary sings, the complete track IS the ambient soundtrack;
-      // while a trial runs the world quiets down so the tested voice stands clear
-      const vol = (victoryT0 >= 0 ? 0.8 : (found.length ? 2.5 / Math.sqrt(found.length + 2) : 0)) * (mg ? 0.35 : 1);
+      // once the ritual ends the complete track IS the ambient soundtrack —
+      // left singing it plays on forever; after the final note, silence
+      const vol = (finale ? 0.8 : (found.length ? 2.5 / Math.sqrt(found.length + 2) : 0)) * (mg ? 0.35 : 1);
       while (found.length && loopNext < now + 0.9) {
         for (const t of found)
           A.playPhrase(INSTRUMENTS[t.i], vol, loopNext - now, IPANS[t.i]);
@@ -1414,8 +1863,24 @@ function update(dt) {
     }
   }
 
+  // --- the altar calls its songkeeper: come near with ten voices home ---
+  if (finaleReady && !finale && started && Math.hypot(p.x - ALTAR.x, p.z - ALTAR.z) < 30) beginFinale();
+  // --- the unmarked choice: once the chord stands, walking away is an answer.
+  //     no prompt, no UI — the sanctuary sings on behind you, and it shows ---
+  if (finale && finale.ended && !ending && time - finale.endT > 8) {
+    const dAlt = Math.hypot(p.x - ALTAR.x, p.z - ALTAR.z);
+    if (dAlt > 26) {
+      if (!finale.leaveT) finale.leaveT = time;
+      else if (time - finale.leaveT > 5) {
+        ending = 'left';
+        finale.showVictoryT = time + 4;
+      }
+    } else finale.leaveT = 0;
+  }
+
   // --- trial update ---
   updateTrial(dt);
+  updateFinale(dt);
 
   // --- treasure flight to the altar + arrival sparkles ---
   for (const t of treasures) {
@@ -1448,7 +1913,6 @@ function update(dt) {
     if (!g.active && time > ghostAppearT) {
       g.active = true; g.idx = 0; g.walkT = 0;
       A.tone(midiF(74), { vol: 0.03, dur: 3, wet: 0.9 });
-      showToast(L('a faint figure treads the sand\u2026', '一个淡淡的身影踏沙而来……'));
     }
     if (g.active) {
       g.alpha = Math.min(g.alpha + dt / 2, 0.6);
@@ -1489,16 +1953,20 @@ function update(dt) {
     });
   }
 
-  // --- victory fireworks over the altar (throughout the finale) ---
-  if (victoryT0 >= 0 && time - victoryT0 < 80 && Math.random() < 0.3) {
-    sparkleAt(ALTAR.x + rand(-14, 14), rand(10, 22), ALTAR.z + rand(-6, 6), 12);
+  // --- the ritual scatters gold over the altar as each voice comes home ---
+  if (finale && !finale.ended && finale.st === 'in' && Math.random() < 0.3) {
+    sparkleAt(ALTAR.x + rand(-14, 14), rand(10, 22), ALTAR.z + rand(-6, 6), 3);
   }
-  // the living sanctuary breathes golden rings during free wander
-  if (victoryT0 >= 0 && time - victoryT0 > 80 && Math.random() < 0.012) {
+  // the finished sanctuary breathes golden rings as it sings on
+  if (finale && finale.ended && !sanctuarySilent && Math.random() < 0.012) {
     waves.push({ x: ALTAR.x, z: ALTAR.z, r: 0.6, max: 30 });
   }
-  // --- victory overlay appears after the finale song (~76s) ---
-  if (victoryT0 >= 0 && time - victoryT0 > 76 && !victoryEl.classList.contains('show')) {
+  // --- the one card the game shows — only after the choice has been made ---
+  if (finale && finale.showVictoryT && time > finale.showVictoryT && !victoryEl.classList.contains('show')) {
+    const s = Math.floor(time), mm = Math.floor(s / 60), ss = String(s % 60).padStart(2, '0');
+    vstatEl.textContent = ending === 'left'
+      ? L(`the song goes on behind you \u2014 ${mm}:${ss}`, `歌声在你身后继续——${mm}:${ss}`)
+      : L(`the canyon falls silent \u2014 completed in ${mm}:${ss}`, `峡谷归于寂静——用时 ${mm}:${ss} 完成`);
     victoryEl.classList.add('show');
   }
 
@@ -1521,7 +1989,7 @@ function update(dt) {
 
   // --- dust drift ---
   for (const d of dusts) {
-    d.x += (2.2 + Math.sin(time * 0.7 + d.ph)) * dt;
+    d.x += (2.2 + Math.sin(time * 0.7 + d.ph)) * dt * (REDUCED ? 0.35 : 1);
     if (d.x > 30) d.x = -30;
   }
 }
@@ -1938,7 +2406,8 @@ function drawTreasure(t) {
   const onTrial = mg && mg.ti === t.i && !t.found;
   const qv = onTrial ? mg.q : 0;
   const hv = onTrial ? mg.h / mg.hold : 0;
-  const swellN = onTrial && mg.type === 1 ? 0.5 + 0.5 * Math.sin(TAU * mg.swPh) : 0;
+  const breathy = onTrial && (mg.verb === 'drift' || mg.verb === 'timing');
+  const swellN = breathy ? 0.5 + 0.5 * Math.sin(TAU * mg.swPh) : 0;
 
   // not yet awake — only the faintest glint marks the resting place
   const rk = tRevealK(t);
@@ -1986,14 +2455,14 @@ function drawTreasure(t) {
       ctx.globalCompositeOperation = 'lighter';
       for (let ri = 0; ri < 3; ri++) {
         const rr = (2.3 + ri * 1.2) * (1 + 0.06 * Math.sin(time * 1.7 + ri * 1.9));
-        const breathe = mg.type === 1 ? 0.3 + 0.7 * swellN : qv;
+        const breathe = breathy ? 0.3 + 0.7 * swellN : qv;
         const a = clamp((0.08 + 0.3 * qv + 0.12 * hv) * breathe, 0, 0.55) * (1 - ri * 0.24);
         if (a <= 0.012) continue;
         ctx.strokeStyle = `rgba(255,214,150,${a})`;
         ctx.lineWidth = Math.max(1, 0.16 * gp.s);
         ctx.beginPath();
         ctx.ellipse(gp.x,
-          gp.y - (hv * 0.5 + (mg.type === 1 ? swellN * 0.22 : qv * 0.3)) * gp.s,
+          gp.y - (hv * 0.5 + (breathy ? swellN * 0.22 : qv * 0.3)) * gp.s,
           rr * gp.s, rr * gp.s * 0.26, 0, 0, TAU);
         ctx.stroke();
       }
@@ -2509,109 +2978,67 @@ function drawCompass() {
   ctx.fillText(L(`${Math.round(bestD)} paces`, `${Math.round(bestD)} 步`), cx, cy + 26);
 }
 
-// explicit guide to the first voice — a gold marker over the instrument while
-// the tutorial leads you there, an edge arrow when it leaves the frame
-function drawTutGuide() {
-  if (!started || mg || tut.done || victoryT0 >= 0) return;
-  if (tut.step !== 2 && tut.step !== 3) return;
-  const tp = tut.target;
-  if (!tp || tp.found) return;
-  const d = Math.hypot(tp.x - p.x, tp.z - p.z);
-  const kIn = clamp((time - tut.t0) / 0.9, 0, 1);
-  const a = kIn * (0.72 + 0.16 * Math.sin(time * 2.4));
-  const fs = clamp(Math.min(W, H) * 0.017, 11, 16);
-  const label = L(`${INSTRUMENTS[tp.i].name.toLowerCase()} \u00b7 ${Math.round(d)} paces`, `${INSTRUMENTS[tp.i].zh} \u00b7 ${Math.round(d)} 步`);
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.shadowColor = 'rgba(25,12,26,0.9)';
-  const pr = project(tp.x, groundH(tp.x, tp.z) + 1.7, tp.z);
-  const onScreen = pr && pr.x > W * 0.07 && pr.x < W * 0.93 && pr.y > H * 0.12 && pr.y < H * 0.88;
-  if (onScreen) {
-    // pulsing gold diamond floating above the instrument itself
-    const s = clamp(pr.s * 0.9, 5, 14);
-    ctx.globalAlpha = a;
-    ctx.fillStyle = '#ffd98f';
-    ctx.shadowColor = 'rgba(255,180,90,0.85)';
-    ctx.shadowBlur = 16;
-    ctx.beginPath();
-    ctx.moveTo(pr.x, pr.y - s * 1.9);
-    ctx.lineTo(pr.x + s, pr.y - s * 0.5);
-    ctx.lineTo(pr.x, pr.y + s);
-    ctx.lineTo(pr.x - s, pr.y - s * 0.5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowBlur = 6;
-    ctx.shadowColor = 'rgba(25,12,26,0.9)';
-    ctx.font = `italic ${fs}px Georgia, "Palatino Linotype", serif`;
-    ctx.fillStyle = `rgba(255,232,195,${a})`;
-    ctx.fillText(label, pr.x, pr.y - s * 2.6 - fs * 1.1);
-  } else {
-    // off-screen or behind — gold arrow from mid-screen along the bearing
-    const dx = tp.x - p.x, dz = tp.z - p.z;
-    const c = Math.cos(yaw), sn = Math.sin(yaw);
-    const vx = c * dx - sn * dz, vz = sn * dx + c * dz;
-    const L = Math.hypot(vx, vz) || 1;
-    const ax = W * 0.5 + (vx / L) * Math.min(W, H) * 0.3;
-    const ay = H * 0.46 + (-vz / L) * Math.min(W, H) * 0.3;
+// the approaching voice of the finale — a golden mote gliding in from the
+// altar, with a ring on the sand that closes as the arrival breath nears
+function drawFinaleVoice() {
+  if (!finale || finale.ended || finale.st === 'wait') return;
+  const pr = project(finale.pos.x, finale.pos.y, finale.pos.z);
+  const gp = project(finale.hov.x, groundH(finale.hov.x, finale.hov.z) + 0.06, finale.hov.z);
+  // the arrival ring: the conductor's downbeat, drawn in sand
+  if (gp && finale.st === 'in') {
+    const k = clamp(1 - (finale.arrT - time) / finale.dur, 0, 1);
+    const a = 0.12 + 0.3 * k + 0.18 * Math.max(0, 1 - Math.abs(time - finale.arrT) / 0.6);
     ctx.save();
-    ctx.translate(ax, ay);
-    ctx.rotate(Math.atan2(-vz / L, vx / L));
-    ctx.globalAlpha = a * 0.95;
-    ctx.fillStyle = '#ffd98f';
-    ctx.shadowColor = 'rgba(255,180,90,0.85)';
-    ctx.shadowBlur = 14;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(255,222,160,${Math.min(a, 0.55)})`;
+    ctx.lineWidth = Math.max(1, 0.18 * gp.s);
     ctx.beginPath();
-    ctx.moveTo(16, 0); ctx.lineTo(-9, 9); ctx.lineTo(-4, 0); ctx.lineTo(-9, -9);
-    ctx.closePath();
-    ctx.fill();
+    ctx.ellipse(gp.x, gp.y, 3.2 * gp.s, 3.2 * gp.s * 0.26, 0, 0, TAU);
+    ctx.stroke();
     ctx.restore();
-    ctx.font = `italic ${fs}px Georgia, "Palatino Linotype", serif`;
-    ctx.fillStyle = `rgba(255,232,195,${a * 0.9})`;
-    ctx.fillText(label, ax, ay + 30);
   }
+  if (!pr) return;
+  const s = pr.s, breathe = 1 + 0.1 * Math.sin(time * 5.2);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const og = ctx.createRadialGradient(pr.x, pr.y, 0, pr.x, pr.y, 2.6 * s);
+  og.addColorStop(0, 'rgba(255,236,190,0.95)');
+  og.addColorStop(0.45, 'rgba(255,214,150,0.5)');
+  og.addColorStop(1, 'rgba(255,214,150,0)');
+  ctx.fillStyle = og;
+  ctx.fillRect(pr.x - 2.6 * s, pr.y - 2.6 * s, 5.2 * s, 5.2 * s);
+  ctx.fillStyle = 'rgba(255,244,214,0.95)';
+  ctx.beginPath();
+  ctx.arc(pr.x, pr.y, Math.max(1.4, 0.55 * s * breathe), 0, TAU);
+  ctx.fill();
   ctx.restore();
 }
 
-// the tutorial whisper — top-center, one line at a time, never crowding the trial
-function drawTutorial() {
-  if (!started || mg || tut.done || victoryT0 >= 0) return;
-  const TXT = [
-    L('walk \u2014 W A S D or the arrow keys', '行走——W A S D 或方向键'),
-    L('look \u2014 Q and E turn, or drag the sand', '转头——Q 和 E，或拖动沙地'),
-    L('a voice hums beyond the dunes \u2014 follow the song', '沙丘之外有声音在哼唱——循声而去'),
-    L('stand close and press SPACE to sing', '走近些，按 空格 歌唱'),
-    '',
-    L('the altar keeps its voice \u2014 nine more sleep across the canyon', '祭坛收下了这个声音——峡谷各处还睡着九个'),
-    L('wander and listen \u2014 sing to any voice that stirs', '漫步聆听——向任何苏醒的声音歌唱'),
-  ];
-  const txt = TXT[tut.step];
-  if (!txt) return;
-  const kIn = clamp((time - tut.t0) / 0.9, 0, 1);
-  const a = kIn * tut.fade;
-  const x = W * 0.5, y = H * 0.135;
-  const fs = clamp(Math.min(W, H) * 0.022, 14, 24);
-  // full-width CJK glyphs render ~3x wider than the latin estimate
-  const cw = [...txt].reduce((n, c) => n + (c.charCodeAt(0) > 0x2e80 ? 3 : 1), 0);
-  ctx.save();
-  ctx.textAlign = 'center';
-  // soft backdrop so the whisper stays legible over bright sand
-  const bw = Math.max(fs * 6, fs * cw * 0.27);
-  const bg = ctx.createRadialGradient(x, y - fs * 0.4, fs * 0.5, x, y - fs * 0.4, bw);
-  bg.addColorStop(0, `rgba(22,13,25,${0.5 * a})`);
-  bg.addColorStop(1, 'rgba(22,13,25,0)');
-  ctx.fillStyle = bg;
-  ctx.fillRect(x - bw, y - fs * 2.4, bw * 2, fs * 3.6);
-  ctx.font = `italic ${fs}px Georgia, "Palatino Linotype", serif`;
-  ctx.fillStyle = `rgba(255,236,205,${a * (0.8 + 0.1 * Math.sin(time * 1.8))})`;
-  ctx.shadowColor = 'rgba(25,12,26,0.9)';
-  ctx.shadowBlur = 6;
-  ctx.fillText(txt, x, y);
-  if (tut.step === 2) {
-    ctx.font = `${fs * 0.72}px Georgia, "Palatino Linotype", serif`;
-    ctx.fillStyle = `rgba(255,236,205,${a * 0.62})`;
-    ctx.fillText(L('the stone guide leans the way \u2014 the song leads true', '石之罗盘指引方向——歌声引路为真'), x, y + fs * 1.5);
+// s — voice glints: hidden voices stain the rim of sight on the side they hum
+function drawGlints() {
+  if (!glintPref || !started || finale || victoryT0 >= 0) return;
+  for (const t of treasures) {
+    if (t.found || !tHidden(t)) continue;
+    const dx = t.x - p.x, dz = t.z - p.z;
+    const c = Math.cos(yaw), sn = Math.sin(yaw);
+    const vx = c * dx - sn * dz;               // side of the frame it hums from
+    const side = vx >= 0 ? 1 : -1;
+    const ex = side > 0 ? W - 26 : 26;
+    const pulse = Math.sin(time * 2.3 + t.ph);
+    const a = 0.26 + 0.16 * pulse;
+    const r = 5 + pulse * 1.4;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = `rgba(255,224,170,${a})`;
+    ctx.beginPath();
+    ctx.moveTo(ex, H * 0.42 - r * 1.7);
+    ctx.lineTo(ex + r * side, H * 0.42);
+    ctx.lineTo(ex, H * 0.42 + r * 1.7);
+    ctx.lineTo(ex - r * side, H * 0.42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
-  ctx.restore();
 }
 
 // ---------------- master draw ----------------
@@ -2674,21 +3101,21 @@ function draw() {
   drawParticles();
   drawDust();
   drawCompass();
+  // the finale's approaching voice arrives above the world, below the card
+  drawFinaleVoice();
+  // hidden voices answered only by sight, and only if asked for (s)
+  drawGlints();
 
   // post: vignette + grain
   ctx.fillStyle = vigGrad;
   ctx.fillRect(0, 0, W, H);
   if (!grainPat) grainPat = ctx.createPattern(grain, 'repeat');
   ctx.save();
-  ctx.globalAlpha = 0.5;
+  ctx.globalAlpha = REDUCED ? 0.125 : 0.5;
   ctx.fillStyle = grainPat;
   ctx.translate((time * 37) % 140 | 0, (time * 61) % 140 | 0);
   ctx.fillRect(-140, -140, W + 280, H + 280);
   ctx.restore();
-
-  // trial feedback lives in the world itself — the sand and the treasure speak
-  drawTutGuide();
-  drawTutorial();
 }
 
 // ---------------- main loop ----------------
@@ -2708,7 +3135,7 @@ window.SS = () => ({
   started, got: litCount, px: +p.x.toFixed(1), pz: +p.z.toFixed(1),
   yaw: +yaw.toFixed(2), camx: +cam.x.toFixed(1), camz: +cam.z.toFixed(1),
   victory: victoryT0, order: collectOrder, lore: loreActive,
-  mg: mg ? { ti: mg.ti, type: mg.type, phase: mg.phase, q: +mg.q.toFixed(2), h: +mg.h.toFixed(2), hold: mg.hold } : null,
+  mg: mg ? { ti: mg.ti, verb: mg.verb, phase: mg.phase, q: +mg.q.toFixed(2), h: +mg.h.toFixed(2), hold: mg.hold } : null,
   audio: A.ctx ? A.ctx.state : 'none'
 });
 window.BOUNDS = { x: XMAX, zl: ZMIN, zh: ZMAX, ax: ALTAR.x, az: ALTAR.z };
