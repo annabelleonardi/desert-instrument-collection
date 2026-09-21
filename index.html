@@ -1144,6 +1144,16 @@ function puff(x, z, n) {
     life: rand(0.4, 0.8), life0: 0.8, size: rand(0.15, 0.3)
   });
 }
+// golden sand kicked off the hem while she walks — drifts back along her wake
+function sandTrail(spd) {
+  const s = Math.max(spd, 0.01);
+  const n = spd > 9 ? 2 : 1;
+  for (let i = 0; i < n; i++) particles.push({
+    kind: 'spark', x: p.x + rand(-0.5, 0.5), y: groundH(p.x, p.z) + rand(0.1, 0.5), z: p.z + rand(-0.5, 0.5),
+    vx: -p.vx / s * rand(1, 2.2) + rand(-0.6, 0.6), vy: rand(0.6, 1.6), vz: -p.vz / s * rand(1, 2.2) + rand(-0.6, 0.6),
+    life: rand(0.45, 0.85), life0: 0.85, size: rand(0.05, 0.12), ph: rand(TAU)
+  });
+}
 // ambient dust drifting in a volume around the camera
 const dusts = Array.from({ length: 55 }, () => ({ x: rand(-30, 30), y: rand(0.2, 5), z: rand(4, 70), ph: rand(TAU), s: rand(0.02, 0.06) }));
 
@@ -1263,6 +1273,7 @@ function update(dt) {
       p.stepAcc = 0;
       A.footstep();
       puff(p.x, p.z, spdNow > 9 ? 3 : 2);
+      sandTrail(spdNow);
     }
   }
   // the wind answers your speed
@@ -1659,7 +1670,7 @@ function drawAltar() {
   const fog = clamp(Math.hypot(ALTAR.x - cam.x, ALTAR.z - cam.z) / 300, 0, 1);
   drawShadow(ALTAR.x, ALTAR.z, 15);
 
-  // tiers: front face + top sliver
+  // tiers: all four faces + top, so the altar is solid from every angle
   for (let j = 0; j < 4; j++) {
     const hw = tiers[j], hd = hw * 0.85;
     const y0 = j * TH, y1 = y0 + TH;
@@ -1669,21 +1680,27 @@ function drawAltar() {
     const tr = project(ALTAR.x + hw, y1, ALTAR.z - hd);
     const bl = project(ALTAR.x - hw * 0.72, y1, ALTAR.z + hd);
     const br = project(ALTAR.x + hw * 0.72, y1, ALTAR.z + hd);
-    if (!fl || !fr || !tl || !tr || !bl || !br) continue;
-    // top face
-    ctx.beginPath();
-    ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
-    ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
-    ctx.closePath();
-    ctx.fillStyle = fogMix('#5a4034', fog);
-    ctx.fill();
-    // front face
-    ctx.beginPath();
-    ctx.moveTo(fl.x, fl.y); ctx.lineTo(fr.x, fr.y);
-    ctx.lineTo(tr.x, tr.y); ctx.lineTo(tl.x, tl.y);
-    ctx.closePath();
-    ctx.fillStyle = fogMix('#38222e', fog);
-    ctx.fill();
+    const bal = project(ALTAR.x - hw * 0.72, y0, ALTAR.z + hd);
+    const bar = project(ALTAR.x + hw * 0.72, y0, ALTAR.z + hd);
+    if (!fl || !fr || !tl || !tr || !bl || !br || !bal || !bar) continue;
+    // all five faces, drawn far to near — the altar is solid from every angle
+    const fy = (y0 + y1) / 2;
+    const d2 = c => (c[0] - cam.x) * (c[0] - cam.x) + (c[2] - cam.z) * (c[2] - cam.z) + (cam.yh - c[1]) * (cam.yh - c[1]);
+    const faces = [
+      { c: [ALTAR.x, y1, ALTAR.z], f: '#5a4034', pts: [tl, tr, br, bl] },
+      { c: [ALTAR.x, fy, ALTAR.z - hd], f: '#38222e', pts: [fl, fr, tr, tl] },
+      { c: [ALTAR.x, fy, ALTAR.z + hd], f: '#241621', pts: [bal, bar, br, bl] },
+      { c: [ALTAR.x - hw * 0.86, fy, ALTAR.z], f: '#2e1c28', pts: [fl, tl, bl, bal] },
+      { c: [ALTAR.x + hw * 0.86, fy, ALTAR.z], f: '#2e1c28', pts: [fr, tr, br, bar] },
+    ].sort((a, b) => d2(b.c) - d2(a.c));
+    for (const F of faces) {
+      ctx.beginPath();
+      ctx.moveTo(F.pts[0].x, F.pts[0].y);
+      for (let k = 1; k < 4; k++) ctx.lineTo(F.pts[k].x, F.pts[k].y);
+      ctx.closePath();
+      ctx.fillStyle = fogMix(F.f, fog);
+      ctx.fill();
+    }
     // rim light
     ctx.strokeStyle = `rgba(255,200,140,${(0.3 + 0.5 * warm) * (1 - fog * 0.6)})`;
     ctx.lineWidth = 1.4;
@@ -1692,7 +1709,8 @@ function drawAltar() {
     ctx.stroke();
   }
 
-  // gem sockets on the second tier's front face
+  // gem sockets on the second tier's front face — hidden when that face is turned away
+  if (cam.z < ALTAR.z - tiers[1] * 0.85) {
   for (let i = 0; i < 10; i++) {
     const sx = ALTAR.x - 12.6 + i * 2.8;
     const pr = project(sx, 4, ALTAR.z - tiers[1] * 0.85);
@@ -1711,6 +1729,7 @@ function drawAltar() {
     }
     ctx.fillRect(-r * 0.5, -r * 0.5, r, r);
     ctx.restore();
+  }
   }
 
   // crystal at the apex — after the finale it burns steady: the sanctuary is alive
@@ -2193,24 +2212,6 @@ function drawPlayer() {
   ctx.beginPath();
   ctx.ellipse(x, gy + 2, 0.62 * hPx, 0.14 * hPx, 0, 0, TAU);
   ctx.fill();
-
-  // scarf trailing toward the viewer
-  const nx = x + lean * hPx * 0.3, ny = topY + 0.22 * hPx;
-  const scarf = () => {
-    ctx.beginPath();
-    ctx.moveTo(nx, ny);
-    for (let i = 1; i <= 12; i++) {
-      const q = i / 12;
-      const tt = time * 6 - i * 0.5;
-      const px = nx + Math.sin(tt) * i * 0.9 + Math.sin(time * 1.3) * 2 + lean * i * 1.1;
-      let py = ny + q * (0.75 + Math.abs(Math.sin(tt * 0.8)) * 0.3) * hPx;
-      py -= singK * i * 1.9;
-      ctx.lineTo(px, py);
-    }
-  };
-  ctx.lineCap = 'round';
-  scarf(); ctx.strokeStyle = '#d99a4e'; ctx.lineWidth = Math.max(2.5, 0.09 * hPx); ctx.stroke();
-  scarf(); ctx.strokeStyle = '#f2c069'; ctx.lineWidth = Math.max(1.2, 0.04 * hPx); ctx.stroke();
 
   // robe
   ctx.save();
