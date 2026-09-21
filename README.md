@@ -6,7 +6,7 @@ A chill pseudo-3D desert music exploration game inspired by *Journey*. Explore a
 
 ## Play
 
-**Play in your browser:** [annabelleonardi.github.io/desert-instrument-collection](https://annabelleonardi.github.io/desert-instrument-collection/)
+**Play in your browser:** [annabelleonardi.github.io/sandsong](https://annabelleonardi.github.io/sandsong/)
 
 Or run locally:
 
@@ -36,10 +36,10 @@ You are the last songkeeper of an abandoned canyon shrine. Ten instrument-spirit
 - **Listen** for each instrument's distant motif (stereo-panned, distance-attenuated, in its own timbre) and watch for golden glints and light pillars rising over dune crests. If you search a long time without singing, the game gently reminds you that Space makes nearby voices answer.
 - **Sing** near an instrument to begin its trial: an echo-match (tap Space as each note crosses the staff line) for most, or a steady-breath hold for the flute and horn. Win and it flies home to the altar and joins the song permanently.
 - Each collected instrument adds a new synced musical layer (72 BPM, 8-beat bar) that loops in time with all the others — and physically restores part of the shrine (banners, chimes, a bridge of light…).
-- The canyon unfolds in three acts: after the fifth voice some go dormant and only song reveals them; after the eighth, the deep sanctuary wakes.
+- No gating, no fixed route: all ten instruments are discoverable from the first step, in whatever order your ear chooses. The song you conduct at the end is built from the order you actually woke them — your wander becomes the score.
 - A compass points toward the nearest unfound instrument early on, then sleeps so the songs can lead; press **C** anytime to recall it. Inscribed lore stones tell the sanctuary's story as you pass.
 - Sing along the dune crests to ride a sand-slide. A faint ghost companion may retrace a past wanderer's steps.
-- **Collect all 10** to trigger a chord-progression finale — sung in the order you gathered them — and a victory card that names the song your journey created.
+- **Collect all 10** and the altar calls you: a conducted finale where the ten voices approach one at a time and your sung note is the baton (a mistimed note just circles once and returns — the song cannot fail). Then a victory card names the song your journey created, and you may keep wandering or begin anew.
 
 ## Visual Features
 
@@ -61,11 +61,11 @@ You are the last songkeeper of an abandoned canyon shrine. Ten instrument-spirit
 - Distance attenuation + air muffling (lowpass) + behind-camera falloff
 - Sonar system: singing makes hidden instruments echo back from their world position
 - Layered song loops locked to a shared bar clock
-- Victory chord burst: Dm → B♭ → F → C → Dm(add9)
+- Conducted finale: the ten released voices loop their phrases bar after bar around the altar; after your final note, the canyon holds its silence
 
 ## Tech
 
-- `index.html` — everything in one file (~2900 lines)
+- `index.html` — everything in one file (~3100 lines)
 - HTML5 Canvas 2D
 - Web Audio API
 - Vanilla JavaScript (no build step, no dependencies)
