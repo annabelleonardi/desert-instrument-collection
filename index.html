@@ -30,10 +30,18 @@
   #title{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 62%, rgba(20,8,30,0) 26%, rgba(13,5,22,.6) 100%);transition:opacity 1.6s ease,visibility 0s linear 0s;pointer-events:auto;cursor:pointer;visibility:visible}
   #title.hidden{opacity:0;pointer-events:none;visibility:hidden;transition:opacity 1.6s ease,visibility 0s linear 1.6s}
   #title h1{font-size:46px;font-weight:400;letter-spacing:20px;text-indent:20px;margin:0 0 10px;color:#ffe7bb;text-shadow:0 0 32px rgba(255,180,100,.55)}
-  #title .sub{font-style:italic;font-size:16px;letter-spacing:5px;opacity:.8;margin:0 0 44px}
+  #title .sub{font-style:italic;font-size:16px;letter-spacing:5px;opacity:.8;margin:0 0 18px}
+  #title .story{margin:0 0 24px;font-size:13px;letter-spacing:2px;line-height:2.15;font-style:italic;color:#dcc49e;text-shadow:0 0 14px rgba(255,190,110,.35)}
+  #title .story p{margin:0;opacity:0;animation:storyIn 2.2s ease forwards}
+  #title .story p:nth-child(2){animation-delay:1.6s}
+  #title .story p:nth-child(3){animation-delay:3.2s}
+  #title .langbtns{margin:0 0 40px;display:flex;gap:12px}
+  #title .langbtns button{background:rgba(40,18,45,.45);border:1px solid rgba(245,205,150,.45);color:#e8d4ae;font-family:inherit;font-size:12px;letter-spacing:2px;padding:8px 22px;cursor:pointer;border-radius:3px;transition:all .3s}
+  #title .langbtns button:hover{border-color:#ffd98f}
+  #title .langbtns button.active{background:rgba(90,40,80,.6);border-color:#ffd98f;color:#ffe7bb}
   #title .press{font-size:12px;letter-spacing:4px;text-transform:uppercase;opacity:.6;animation:pulse 2.6s infinite}
-  #title .keys{margin-top:20px;font-size:11px;letter-spacing:2px;opacity:.5;text-transform:uppercase}
   @keyframes pulse{0%,100%{opacity:.3}50%{opacity:.9}}
+  @keyframes storyIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
   #victory{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 45%, rgba(20,8,30,.25) 0%, rgba(10,4,18,.78) 100%);opacity:0;visibility:hidden;transition:opacity 2.2s ease,visibility 0s linear 2.2s;pointer-events:none}
   #victory.show{opacity:1;visibility:visible;pointer-events:auto;transition:opacity 2.2s ease,visibility 0s linear 0s}
   .vin{text-align:center;padding:0 20px}
@@ -67,8 +75,16 @@
   <div id="title">
     <h1>SANDSONG</h1>
     <p class="sub">the sanctuary remembers its song</p>
+    <div class="story">
+      <p>the canyon once sang — ten instruments kept its harmony</p>
+      <p>when the voices scattered, the sanctuary fell silent</p>
+      <p>you are the last songkeeper — walk, listen, and sing the voices home</p>
+    </div>
+    <div class="langbtns">
+      <button data-lang="en">English</button>
+      <button data-lang="zh">中文</button>
+    </div>
     <p class="press">click anywhere to begin</p>
-    <p class="keys">ten voices sleep among the ruins — gather them to the altar</p>
   </div>
   <div id="victory">
     <div class="vin">
@@ -375,21 +391,33 @@ const A = {
   vDrum(when, vol, pan, deep = false) {
     if (!this.ctx || this.ctx.state !== 'running') return;
     const c = this.ctx, t = c.currentTime + when;
+    // membrane: sine sweep that lands in the midrange so the pitch reads on any speaker
     const o = c.createOscillator(); o.type = 'sine';
-    const f0 = deep ? 68 : 108, f1 = deep ? 34 : 47, dc = deep ? 0.8 : 0.32;
+    const f0 = deep ? 96 : 190, f1 = deep ? 58 : 105, dc = deep ? 0.7 : 0.24;
     o.frequency.setValueAtTime(f0, t);
     o.frequency.exponentialRampToValueAtTime(f1, t + dc);
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(vol, t + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + (deep ? 1.2 : 0.5));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (deep ? 1.1 : 0.45));
     o.connect(g); this.route(g, 0.9, 0.3, pan);
-    o.start(t); o.stop(t + (deep ? 1.3 : 0.6));
+    o.start(t); o.stop(t + (deep ? 1.2 : 0.55));
+    // mallet overtone — the part small speakers can actually sing
+    const o2 = c.createOscillator(); o2.type = 'triangle';
+    o2.frequency.setValueAtTime(deep ? 290 : 640, t);
+    o2.frequency.exponentialRampToValueAtTime(f1 * 2, t + dc * 0.7);
+    const g2 = c.createGain();
+    g2.gain.setValueAtTime(0.0001, t);
+    g2.gain.linearRampToValueAtTime(vol * 0.4, t + 0.006);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + (deep ? 0.5 : 0.2));
+    o2.connect(g2); this.route(g2, 0.8, 0.3, pan);
+    o2.start(t); o2.stop(t + (deep ? 0.6 : 0.3));
+    // skin slap in the mids
     const n = this.noiseSrc(t, 0.12);
-    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = deep ? 95 : 190; bp.Q.value = 1;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = deep ? 480 : 950; bp.Q.value = 0.9;
     const ng = c.createGain();
-    ng.gain.setValueAtTime(vol * 0.5, t);
-    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    ng.gain.setValueAtTime(vol * 0.55, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
     n.connect(bp); bp.connect(ng); this.route(ng, 0.8, 0.2, pan);
   },
   vBell(freq, when, dur, vol, pan) {
@@ -409,7 +437,7 @@ const A = {
     if (!this.ctx || this.ctx.state !== 'running') return;
     const c = this.ctx, t = c.currentTime + when;
     const n = this.noiseSrc(t, 0.09);
-    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3800;
+    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3200;
     const g = c.createGain();
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
@@ -449,20 +477,25 @@ const A = {
     this._sp = sp;
     for (const [m, off, dur] of inst.phrase) {
       const f = midiF(m), w = whenBase + off * SPB, d = dur * SPB;
-      switch (inst.synth) {
-        case 'pluck': this.vPluck(f, w, d, 0.15 * volScale, pan, 6); break;
-        case 'pluckDark': this.vPluck(f, w, d, 0.16 * volScale, pan, 3.2, true); break;
-        case 'pluckBright': this.vPluck(f, w, d, 0.13 * volScale, pan, 9); break;
-        case 'flute': this.vFlute(f, w, d, 0.12 * volScale, pan); break;
-        case 'drum': this.vDrum(w, 0.2 * volScale, pan); break;
-        case 'drumDeep': this.vDrum(w, 0.24 * volScale, pan, true); break;
-        case 'bell': this.vBell(f, w, Math.max(d * 2.2, 2.4), 0.11 * volScale, pan); break;
-        case 'shaker': this.vShaker(w, 0.05 * volScale, pan); break;
-        case 'horn': this.vHorn(f, w, d, 0.12 * volScale, pan); break;
-        case 'choir': this.vChoir(f, w, d, 0.1 * volScale, pan); break;
-      }
+      this.vNote(inst.synth, f, w, d, volScale, pan);
     }
     this._sp = null;
+  },
+
+  // one note through an instrument's voice — shared by phrases, hums and trials
+  vNote(synth, f, w, d, volScale, pan) {
+    switch (synth) {
+      case 'pluck': this.vPluck(f, w, d, 0.15 * volScale, pan, 6); break;
+      case 'pluckDark': this.vPluck(f, w, d, 0.16 * volScale, pan, 3.2, true); break;
+      case 'pluckBright': this.vPluck(f, w, d, 0.13 * volScale, pan, 9); break;
+      case 'flute': this.vFlute(f, w, d, 0.12 * volScale, pan); break;
+      case 'drum': this.vDrum(w, 0.2 * volScale, pan); break;
+      case 'drumDeep': this.vDrum(w, 0.24 * volScale, pan, true); break;
+      case 'bell': this.vBell(f, w, Math.max(d * 2.2, 2.4), 0.11 * volScale, pan); break;
+      case 'shaker': this.vShaker(w, 0.075 * volScale, pan); break;
+      case 'horn': this.vHorn(f, w, d, 0.12 * volScale, pan); break;
+      case 'choir': this.vChoir(f, w, d, 0.1 * volScale, pan); break;
+    }
   },
 
   // the full finale song, ~76s: intro → 10 sections in collectOrder → burst
@@ -513,27 +546,27 @@ const A = {
 // ---------------- the instruments (the ten voices) ----------------
 // phrases are [midi, beat, durBeats] in D minor pentatonic over the D drone
 const INSTRUMENTS = [
-  { name: 'Sandstone Lyre', synth: 'pluck',
+  { name: 'Sandstone Lyre', zh: '砂岩里拉', synth: 'pluck',
     phrase: [[62,0,1],[65,1,1],[67,2,1],[69,3,1],[74,4,2],[69,6,2]] },
-  { name: 'Ney Flute',      synth: 'flute',
+  { name: 'Ney Flute', zh: '奈伊笛', synth: 'flute',
     phrase: [[69,0,1.5],[67,1.5,0.5],[65,2,1],[62,3,2],[65,5,1],[67,6,2]] },
-  { name: 'Frame Drum',     synth: 'drum',
+  { name: 'Frame Drum', zh: '框鼓', synth: 'drum',
     phrase: [[50,0,0.5],[50,1.5,0.5],[57,2,0.5],[50,3,0.5],[50,4,0.5],[57,5.5,0.5],[50,6,0.5],[57,7,0.5]] },
-  { name: 'Desert Oud',     synth: 'pluckDark',
+  { name: 'Desert Oud', zh: '沙漠乌德', synth: 'pluckDark',
     phrase: [[50,0,1],[53,1,0.5],[57,2,1],[53,3,0.5],[62,4,2],[60,6,1],[57,7,1]] },
-  { name: 'Wind Bells',     synth: 'bell',
+  { name: 'Wind Bells', zh: '风铃', synth: 'bell',
     phrase: [[74,0,1.5],[69,1,1.5],[72,2,1.5],[69,3,1.5],[74,4,1.5],[77,5,1.5],[74,6,1.5],[72,7,1.5]] },
-  { name: 'Reed Harp',      synth: 'pluckBright',
+  { name: 'Reed Harp', zh: '芦苇竖琴', synth: 'pluckBright',
     phrase: [[50,0,0.25],[53,0.5,0.25],[57,1,0.25],[62,1.5,0.25],[65,2,0.25],[69,2.5,0.25],[74,3,0.25],[69,3.5,0.25],
              [50,4,0.25],[53,4.5,0.25],[57,5,0.25],[62,5.5,0.25],[65,6,0.25],[69,6.5,0.25],[74,7,0.25],[72,7.5,0.25]] },
-  { name: 'Coin Shaker',    synth: 'shaker',
+  { name: 'Coin Shaker', zh: '铜钱铃', synth: 'shaker',
     phrase: [[50,0,0.25],[50,0.5,0.25],[50,1,0.25],[50,1.5,0.25],[50,2,0.25],[50,2.5,0.25],[50,3,0.25],[50,3.5,0.25],
              [50,4,0.25],[50,4.5,0.25],[50,5,0.25],[50,5.5,0.25],[50,6,0.25],[50,6.5,0.25],[50,7,0.25],[50,7.5,0.25]] },
-  { name: 'Ram\u2019s Horn',    synth: 'horn',
+  { name: 'Ram\u2019s Horn', zh: '羊角号', synth: 'horn',
     phrase: [[50,0,3.5],[53,4,3.5],[57,7.5,0.5]] },
-  { name: 'Deep Drum',      synth: 'drumDeep',
+  { name: 'Deep Drum', zh: '低音鼓', synth: 'drumDeep',
     phrase: [[38,0,0.5],[38,1.5,0.5],[38,4,0.5],[38,5.5,0.5],[38,6,0.5],[38,7.5,0.5]] },
-  { name: 'Choir Stone',    synth: 'choir',
+  { name: 'Choir Stone', zh: '合唱石', synth: 'choir',
     phrase: [[50,0,8],[57,2,6],[62,4,4],[65,6,2]] }
 ];
 // fixed stereo voice for each layer, so the full mix has width
@@ -628,11 +661,11 @@ const landmarks = [
 
 // lore stones: inscribed tablets that reveal the sanctuary's story
 const loreStones = [
-  { x: -40, z: 12, text: 'The sanctuary was built where the desert first learned to sing.' },
-  { x: 5, z: 48, text: 'Ten voices were given to the canyon — each a promise of harmony.' },
-  { x: -64, z: 95, text: 'The flutists taught the wind. The drummers gave the sand its heartbeat.' },
-  { x: 5, z: 128, text: 'When the voices scattered, the canyon fell silent. The songkeeper was the last to leave.' },
-  { x: -44, z: 155, text: '...and the first to return. The altar waits for one who can sing them home.' }
+  { x: -40, z: 12, text: 'The sanctuary was built where the desert first learned to sing.', zh: '圣所建在沙漠第一次学会歌唱的地方。' },
+  { x: 5, z: 48, text: 'Ten voices were given to the canyon — each a promise of harmony.', zh: '十个声音被托付给峡谷——每一个都是和声的承诺。' },
+  { x: -64, z: 95, text: 'The flutists taught the wind. The drummers gave the sand its heartbeat.', zh: '笛手教会了风。鼓手给了沙地心跳。' },
+  { x: 5, z: 128, text: 'When the voices scattered, the canyon fell silent. The songkeeper was the last to leave.', zh: '当声音四散，峡谷归于沉寂。守歌人是最后一个离开的。' },
+  { x: -44, z: 155, text: '...and the first to return. The altar waits for one who can sing them home.', zh: '……也是第一个归来的。祭坛在等待能唱它们回家的人。' }
 ].map((o, i) => ({ ...o, i }));
 
 // =====================================================================
@@ -642,6 +675,17 @@ const SPD = 11;
 const p = { x: 0, z: 5, vx: 0, vz: 0, singT: -9, stepAcc: 0, moving: false };
 const cam = { x: 0, z: -9, yh: 5.2 };
 let yaw = 0;
+
+// first-steps tutorial: the nearest sleeping voice leads the lesson — each
+// prompt waits for the real gesture, never a timer
+const tut = (() => {
+  let best = null, bd = 1e9;
+  for (const t of treasures) {
+    const d = Math.hypot(t.x - p.x, t.z - p.z);
+    if (d < bd) { bd = d; best = t; }
+  }
+  return { step: 0, t0: 0, moved: 0, turned: 0, lx: 0, lz: 5, lyaw: 0, target: best, done: false, fade: 1 };
+})();
 let started = false, time = 0, litCount = 0;
 let victoryT0 = -1, loopNext = 0;
 let warm = 0;                        // golden tint grows with each find
@@ -657,6 +701,7 @@ let camBack = 9;
 let compassPref = false;             // accessibility toggle (C) — the songs lead by default
 let humBar = -1;                     // bar index of the last scheduled treasure hum
 let slide = null;                    // active sand-slide, or null
+let lastSingTipT = 0;                // last time the "press SPACE to sing" nudge fired
 const HUMINT = [0, 2, 3, 5, 7, 10, 12, 14, 15, 17];   // each voice's answer interval
 
 // restoration: every recovered voice physically re-awakens part of the shrine
@@ -709,6 +754,41 @@ const audioBtn = document.getElementById('audioBtn');
 const victoryEl = document.getElementById('victory');
 const vstatEl = document.getElementById('vstat');
 
+// ---------------- language — picked on the title screen, remembered ----------------
+let lang = 'en';
+try { if (localStorage.getItem('sandsong_lang') === 'zh') lang = 'zh'; } catch (e) {}
+const L = (en, zh) => lang === 'zh' ? zh : en;
+const INSTR = i => lang === 'zh' ? INSTRUMENTS[i].zh : INSTRUMENTS[i].name;
+function applyLang() {
+  document.querySelector('#title h1').textContent = L('SANDSONG', '沙之歌');
+  document.querySelector('#title .sub').textContent = L('the sanctuary remembers its song', '圣所仍记得它的歌');
+  const zhStory = ['峡谷曾放声歌唱——十件乐器守护着它的和声', '当声音四散，圣所陷入沉寂', '你是最后的守歌人——行走、倾听，把声音们唱回家'];
+  document.querySelectorAll('#title .story p').forEach((el, i) => {
+    el.textContent = L(['the canyon once sang — ten instruments kept its harmony',
+      'when the voices scattered, the sanctuary fell silent',
+      'you are the last songkeeper — walk, listen, and sing the voices home'][i], zhStory[i]);
+  });
+  document.querySelector('#title .press').textContent = L('click anywhere to begin', '点击任意处开始');
+  document.querySelectorAll('#title .langbtns button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  document.querySelector('#harmony .label').textContent = L('Treasures Collected', '已唤醒的声音');
+  hintEl.textContent = L('wasd / arrows — wander  \u00b7  q e / drag \u2014 look  \u00b7  space \u2014 sing near a voice to begin its trial  \u00b7  inscribed stones tell the story',
+    'wasd / 方向键 — 行走 \u00b7 q e / 拖动 — 环顾 \u00b7 空格 — 在声音旁歌唱以开始试炼 \u00b7 石碑诉说着故事');
+  document.querySelector('.vin h2').textContent = L('SANCTUARY HARMONY', '圣所和声');
+  document.querySelector('.vin .vsub').textContent = L('all ten voices sing as one', '十声合一');
+  document.getElementById('stayBtn').textContent = L('keep wandering', '继续漫步');
+  document.getElementById('againBtn').textContent = L('begin anew', '重新开始');
+}
+document.querySelectorAll('#title .langbtns button').forEach(b => {
+  b.addEventListener('pointerdown', e => e.stopPropagation());
+  b.addEventListener('click', e => {
+    e.stopPropagation();
+    lang = b.dataset.lang;
+    try { localStorage.setItem('sandsong_lang', lang); } catch (err) {}
+    applyLang();
+  });
+});
+applyLang();
+
 function buildHUD() {
   gemsEl.innerHTML = '';
   treasures.forEach(() => {
@@ -721,8 +801,8 @@ function updateHUD() {
   [...gemsEl.children].forEach((g, i) => g.classList.toggle('lit', treasures[i].found));
   hcountEl.textContent = litCount + ' / 10';
   secnameEl.textContent = litCount === 0 ? ''
-    : litCount >= 10 ? 'all ten voices — the sanctuary song'
-    : `${litCount} ${litCount === 1 ? 'voice' : 'voices'} singing`;
+    : litCount >= 10 ? L('all ten voices \u2014 the sanctuary song', '十个声音——圣所之歌')
+    : L(`${litCount} ${litCount === 1 ? 'voice' : 'voices'} singing`, `${litCount} 个声音正在歌唱`);
 }
 let toastTimer = 0;
 function showToast(txt) {
@@ -742,6 +822,7 @@ document.getElementById('againBtn').addEventListener('click', () => location.rel
 function start() {
   if (started) return;
   started = true;
+  tut.t0 = time;                       // the canyon begins its lesson
   audioBtn.classList.add('on');
   titleEl.classList.add('hidden');
   harmonyEl.classList.add('show');
@@ -783,11 +864,12 @@ addEventListener('keydown', e => {
     else if (mg) { /* ignore presses during intro/listen/win/fail */ }
     else sing();
   }
-  if (e.code === 'Escape' && mg && mg.phase !== 'win') { mg = null; showToast('the voice slips away\u2026'); }
+  if (e.code === 'Escape' && mg && mg.phase !== 'win') { mg = null; showToast(L('the voice slips away\u2026', '声音悄然离去\u2026\u2026')); }
   if (e.code === 'KeyM') toggleAudio();
   if (e.code === 'KeyC') {
     compassPref = !compassPref;
-    showToast(compassPref ? 'the stone guide wakes' : 'you listen to the canyon instead');
+    showToast(compassPref ? L('the stone guide wakes', '石之罗盘苏醒了')
+      : L('you listen to the canyon instead', '你改而聆听峡谷'));
   }
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -824,7 +906,7 @@ function sing() {
     // a voice sleeps deeper than your song reaches — the canyon stays quiet
     A.tone(midiF(38), { when: 0.25, vol: 0.045, dur: 2.6, wet: 0.9 });
     waves.push({ x: best.x, z: best.z, r: 0.4, max: 9, faint: true });
-    showToast('something sleeps here, deeper than your song reaches\u2026');
+    showToast(L('something sleeps here, deeper than your song reaches\u2026', '这里沉睡着比你歌声更深的东西\u2026\u2026'));
     return;
   }
   if (best && bestD < 26) {
@@ -841,7 +923,7 @@ function sing() {
     slide = { t0: time, dur: 2.4, dx: alongX ? 0 : dir, dz: alongX ? dir : 0 };
     A.slide();
     waves.push({ x: p.x, z: p.z, r: 0.5, max: 14 });
-    showToast('the dune carries you!');
+    showToast(L('the dune carries you!', '沙丘载着你前行！'));
     return;
   }
   A.sing(litCount > 0 ? midiF(62) : null);
@@ -874,7 +956,7 @@ function startMinigame(t) {
   };
   if (mg.seq) mg.res = mg.seq.map(() => null);
   waves.push({ x: t.x, z: t.z, r: 0.4, max: 12 });
-  showToast(`${inst.name} — answer its call`);
+  showToast(L(inst.name + ' \u2014 answer its call', inst.zh + '\u2014\u2014回应它的呼唤'));
 }
 
 // play one note of a trial: k is either an index into the instrument's phrase
@@ -885,7 +967,7 @@ function playMinigameNote(k) {
   const note = Array.isArray(k) ? k : inst.phrase[Math.min(k, inst.phrase.length - 1)];
   const [m, , dur] = note;
   const sp = A.panFor(treasures[mg.ti].x, treasures[mg.ti].z);
-  A.playPhrase({ ...inst, phrase: [[m, 0, dur]] }, 0.7, 0, sp.pan, sp);
+  A.playPhrase({ ...inst, phrase: [[m, 0, dur]] }, 1.05, 0, sp.pan, sp);
 }
 
 function updateMinigame(dt) {
@@ -903,9 +985,14 @@ function updateMinigame(dt) {
         mg.phase = 'listen';
         mg.listenT0 = time;
         const sp = A.panFor(t.x, t.z);
-        A.playPhrase({ ...INSTRUMENTS[mg.ti], phrase: mg.seq }, 0.95, 0, sp.pan, sp);
+        A.playPhrase({ ...INSTRUMENTS[mg.ti], phrase: mg.seq }, 1.35, 0, sp.pan, sp);
         mg.listenDur = Math.max(...mg.seq.map(n => n[1] + n[2])) * SPB + 0.9;
-      } else mg.phase = 'play';
+      } else {
+        // the voice introduces itself before the breath trial
+        mg.phase = 'play';
+        const sp = A.panFor(t.x, t.z);
+        A.playPhrase(INSTRUMENTS[mg.ti], 1.1, 0, sp.pan, sp);
+      }
     }
     return;
   }
@@ -980,7 +1067,9 @@ function awaken(t) {
   litCount++;
   warm = litCount / 10;
   updateHUD();
-  showToast(`${INSTRUMENTS[t.i].name} joins the song`);
+  showToast(L(INSTRUMENTS[t.i].name + ' joins the song', INSTRUMENTS[t.i].zh + '加入了歌声'));
+  if (litCount === 1) setTimeout(() => showToast(
+    L('nine voices remain \u2014 follow their hums and sing them home', '还剩九个声音——循着哼唱，把它们唱回家')), 3800);
   A.playPhrase(INSTRUMENTS[t.i], 1.15, 0.15, A.panFor(t.x, t.z).pan, A.panFor(t.x, t.z));
   A.tone(midiF(62) * 2, { when: 0.9, vol: 0.05, dur: 3.5, wet: 0.85 });
   sparkleAt(t.x, groundH(t.x, t.z) + 1, t.z, 26);
@@ -991,41 +1080,45 @@ function awaken(t) {
   if (!chapterLit[ch] && treasures[2 * ch].found && treasures[2 * ch + 1].found) {
     chapterLit[ch] = true;
     A.tone(midiF(62 + HUMINT[t.i]) * 2, { when: 1.2, vol: 0.04, dur: 4, wet: 0.95 });
-    setTimeout(() => showToast('a stone remembers\u2026'), 2800);
+    setTimeout(() => showToast(L('a stone remembers\u2026', '一块石头记起了往事\u2026\u2026')), 2800);
   }
   // the song deepens: new voices wake as the light grows
   if (litCount === ACT_GATE[2]) {
-    showBanner('THE CANYON STIRS');
-    showToast('new voices shimmer where your song falls — sing to wake them');
+    showBanner(L('THE CANYON STIRS', '峡谷躁动'));
+    showToast(L('new voices shimmer where your song falls \u2014 sing to wake them', '你的歌声落下之处，新的声音微光闪烁——用歌声唤醒它们'));
   }
   if (litCount === ACT_GATE[3]) {
-    showBanner('THE DEEP SANCTUARY WAKES');
-    showToast('the oldest voices are listening now');
+    showBanner(L('THE DEEP SANCTUARY WAKES', '深处圣所苏醒'));
+    showToast(L('the oldest voices are listening now', '最古老的声音正在聆听'));
   }
   if (litCount === 2) setTimeout(() =>
-    showToast('the compass sleeps now — follow the songs (C recalls it)'), 3200);
+    showToast(L('the compass sleeps now \u2014 follow the songs (C recalls it)', '罗盘已安睡——循着歌声前行（按 C 可唤回）')), 3200);
   if (litCount === 10) beginVictory();
 }
 
 // every journey names its own song, drawn from the order the voices came home
 const SONG_ADJ = ['Golden', 'Wandering', 'Quiet', 'Dawning', 'Amber', 'Patient', 'Long', 'First'];
 const SONG_NOUN = ['Reunion', 'Circuit', 'Vigil', 'Procession', 'Prayer', 'Caravan', 'Lullaby', 'Rite'];
+const SONG_ADJ_ZH = ['金色', '流浪', '静谧', '黎明', '琥珀', '守候', '漫长', '初绽'];
+const SONG_NOUN_ZH = ['重逢', '巡游', '守望', '行进', '祈祷', '商旅', '摇篮曲', '仪式'];
 function sanctuarySongTitle(order) {
   const h = order.reduce((a, i) => (a * 31 + i + 1) % 9973, 7);
-  return `${SONG_ADJ[h % SONG_ADJ.length]} ${SONG_NOUN[Math.floor(h / SONG_ADJ.length) % SONG_NOUN.length]}`;
+  const adj = SONG_ADJ[h % SONG_ADJ.length], noun = SONG_NOUN[Math.floor(h / SONG_ADJ.length) % SONG_NOUN.length];
+  const adjZh = SONG_ADJ_ZH[h % SONG_ADJ_ZH.length], nounZh = SONG_NOUN_ZH[Math.floor(h / SONG_ADJ_ZH.length) % SONG_NOUN_ZH.length];
+  return L(`${adj} ${noun}`, `${adjZh}${nounZh}`);
 }
 
 function beginVictory() {
   victoryT0 = time;
   const s = Math.floor(time);
-  vstatEl.textContent = `completed in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  vstatEl.textContent = L(`completed in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, `用时 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} 完成`);
   document.getElementById('vsong').innerHTML =
-    `\u201CThe ${sanctuarySongTitle(collectOrder)}\u201D<br>` +
+    L(`\u201CThe ${sanctuarySongTitle(collectOrder)}\u201D`, `\u300A${sanctuarySongTitle(collectOrder)}\u300B`) + '<br>' +
     `<span style="letter-spacing:5px;opacity:.95;font-style:normal">${collectOrder.map(i => GLYPHS[i]).join(' ')}</span><br>` +
-    collectOrder.map(i => INSTRUMENTS[i].name).join('  \u2192  ');
+    collectOrder.map(i => INSTR(i)).join('  \u2192  ');
   if (A.ctx) A.playFinaleSong(A.ctx.currentTime + 0.8);
-  showBanner('THE SANCTUARY SINGS');
-  showToast('every voice of the shrine, together as one');
+  showBanner(L('THE SANCTUARY SINGS', '圣所放声歌唱'));
+  showToast(L('every voice of the shrine, together as one', '圣殿的所有声音，合而为一'));
   // victory overlay appears after the finale song (~76s) — triggered in update()
 }
 
@@ -1057,7 +1150,49 @@ const dusts = Array.from({ length: 55 }, () => ({ x: rand(-30, 30), y: rand(0.2,
 // =====================================================================
 //  UPDATE
 // =====================================================================
+// ---------------- first-steps tutorial ----------------
+// walk → look → follow the nearest voice → sing → echo → outro; every step
+// advances on the player's real action, and the trial itself does the teaching
+function tutNext() { tut.step++; tut.t0 = time; }
+function updateTut(dt) {
+  if (tut.done || !started) return;
+  if (litCount > 0 && tut.step < 5) { tut.step = 5; tut.t0 = time; }     // a voice found out of order — outro
+  if (mg && (tut.step === 2 || tut.step === 3)) { tut.step = 4; tut.t0 = time; }
+  const tp = tut.target;
+  switch (tut.step) {
+    case 0:                                   // walk
+      tut.moved += Math.hypot(p.x - tut.lx, p.z - tut.lz);
+      if (tut.moved > 6) tutNext();
+      break;
+    case 1:                                   // look
+      tut.turned += Math.abs(yaw - tut.lyaw);
+      if (tut.turned > 0.7 || tut.moved > 16) tutNext();
+      break;
+    case 2:                                   // follow the hum to the voice
+      if (tp && Math.hypot(tp.x - p.x, tp.z - p.z) < 16) tutNext();
+      break;
+    case 3:                                   // sing
+      if (tp && tp.found) tutNext();
+      break;
+    case 4:                                   // the trial speaks for itself
+      if (!mg) {
+        if ((tp && tp.found) || litCount > 0) tutNext();
+        else { tut.step = 3; tut.t0 = time; } // the trial slipped away — invite another song
+      }
+      break;
+    case 5:                                   // what the song changed — hold, then the wider call
+      if (time - tut.t0 > 5.5) tutNext();
+      break;
+    case 6:                                   // final whisper, then silence
+      tut.fade = Math.max(0, tut.fade - dt / 4);
+      if (tut.fade <= 0) tut.done = true;
+      break;
+  }
+  tut.lx = p.x; tut.lz = p.z; tut.lyaw = yaw;
+}
+
 function update(dt) {
+  if (started) updateTut(dt);
   // --- look ---
   if (!mg) {
     const turn = (keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0);
@@ -1072,7 +1207,13 @@ function update(dt) {
     iF = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     iR = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   }
-  if (!started) iF = 0.25;
+  // attract mode: the traveler strolls partway to the sanctuary, then waits —
+  // swaying her gaze gently — for the player to press something
+  if (!started) {
+    const dAlt = Math.hypot(p.x - ALTAR.x, p.z - ALTAR.z);
+    if (dAlt > 25) iF = 0.25;
+    else { iF = 0; yaw = Math.sin(time * 0.22) * 0.3; }
+  }
   const len = Math.hypot(iF, iR) || 1;
   const nx = (Math.sin(yaw) * iF + Math.cos(yaw) * iR) / len;
   const nz = (Math.cos(yaw) * iF - Math.sin(yaw) * iR) / len;
@@ -1107,6 +1248,14 @@ function update(dt) {
   }
   p.moving = Math.hypot(p.vx, p.vz) > 1.5;
 
+  // gentle nudge: if the wanderer hasn't sung in a long while, remind them
+  // that singing makes the nearby voices answer
+  if (started && !mg && victoryT0 < 0 && litCount < 10 &&
+      time - p.singT > 45 && time - lastSingTipT > 75) {
+    lastSingTipT = time;
+    showToast(L('press SPACE to sing \u2014 nearby voices will answer', '按 空格 歌唱——附近的声音会回应你'));
+  }
+
   if (started && p.moving) {
     const spdNow = Math.hypot(p.vx, p.vz);
     p.stepAcc += spdNow * dt;
@@ -1140,14 +1289,15 @@ function update(dt) {
     if (!finaleActive) {
       const found = treasures.filter(t => t.found);
       if (found.length && loopNext < now - 0.05) loopNext = now + 0.12;
-      // once the sanctuary sings, the complete track IS the ambient soundtrack
-      const vol = victoryT0 >= 0 ? 0.8 : (found.length ? 2.2 / Math.sqrt(found.length + 2) : 0);
+      // once the sanctuary sings, the complete track IS the ambient soundtrack;
+      // while a trial runs the world quiets down so the tested voice stands clear
+      const vol = (victoryT0 >= 0 ? 0.8 : (found.length ? 2.5 / Math.sqrt(found.length + 2) : 0)) * (mg ? 0.35 : 1);
       while (found.length && loopNext < now + 0.9) {
         for (const t of found)
           A.playPhrase(INSTRUMENTS[t.i], vol, loopNext - now, IPANS[t.i]);
         loopNext += LOOPLEN;
       }
-      // awake voices hum their motif — the songs lead; the compass only recalls
+      // sleeping voices hum in their own timbre — the songs lead; the compass only recalls
       const humN = Math.floor(now / LOOPLEN);
       if (humN !== humBar) {
         humBar = humN;
@@ -1156,10 +1306,10 @@ function update(dt) {
           const d = Math.hypot(t.x - p.x, t.z - p.z);
           if (d > 90) continue;
           const sp = A.panFor(t.x, t.z);
-          A.tone(midiF(62 + HUMINT[t.i]), {
-            when: 0.05, vol: 0.022 * sp.gain * tRevealK(t) * (1 - d / 90),
-            dur: LOOPLEN * 0.75, wet: 0.85, pan: sp.pan, sp
-          });
+          A._sp = sp;
+          A.vNote(INSTRUMENTS[t.i].synth, midiF(62 + HUMINT[t.i]), 0.05, LOOPLEN * 0.75,
+            0.12 * sp.gain * tRevealK(t) * (1 - d / 90), sp.pan);
+          A._sp = null;
         }
       }
     }
@@ -1199,7 +1349,7 @@ function update(dt) {
     if (!g.active && time > ghostAppearT) {
       g.active = true; g.idx = 0; g.walkT = 0;
       A.tone(midiF(74), { vol: 0.03, dur: 3, wet: 0.9 });
-      showToast('a faint figure treads the sand\u2026');
+      showToast(L('a faint figure treads the sand\u2026', '一个淡淡的身影踏沙而来……'));
     }
     if (g.active) {
       g.alpha = Math.min(g.alpha + dt / 2, 0.6);
@@ -1225,7 +1375,7 @@ function update(dt) {
   }
   if (newLore !== loreActive) {
     loreActive = newLore;
-    if (newLore >= 0) { loreEl.textContent = loreStones[newLore].text; loreEl.classList.add('show'); }
+    if (newLore >= 0) { loreEl.textContent = L(loreStones[newLore].text, loreStones[newLore].zh); loreEl.classList.add('show'); }
     else loreEl.classList.remove('show');
   }
 
@@ -2127,17 +2277,50 @@ function drawParticles() {
       ctx.fillStyle = `rgba(255,216,150,${a * 0.85})`;
       ctx.beginPath(); ctx.arc(pr.x, pr.y, Math.max(0.8, q.size * pr.s), 0, TAU); ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
-    } else {  // note
+    } else {  // note — a real quaver: tilted head, stem, flag (a beamed pair for bigger ones)
       ctx.globalCompositeOperation = 'lighter';
-      const r = Math.max(1, q.size * pr.s * 0.35);
-      ctx.fillStyle = `rgba(255,226,160,${a * 0.8})`;
-      ctx.beginPath(); ctx.arc(pr.x, pr.y, r, 0, TAU); ctx.fill();
-      ctx.strokeStyle = `rgba(255,226,160,${a * 0.3})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(pr.x, pr.y);
-      ctx.quadraticCurveTo(pr.x + r * 2, pr.y - r * 3, pr.x + r, pr.y - r * 5);
-      ctx.stroke();
+      const r = clamp(q.size * pr.s * 0.22, 1.2, 8.5);
+      const col = `rgba(255,226,160,${a * 0.85})`;
+      ctx.fillStyle = col;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = Math.max(0.8, r * 0.32);
+      ctx.lineCap = 'round';
+      if (q.size > 1.0) {
+        // beamed pair: two heads, two stems, one thick beam
+        const dx = r * 2.6;
+        for (const off of [-dx / 2, dx / 2]) {
+          const oy = off < 0 ? r * 0.5 : -r * 0.5;
+          ctx.save();
+          ctx.translate(pr.x + off, pr.y + oy);
+          ctx.rotate(-0.32);
+          ctx.beginPath(); ctx.ellipse(0, 0, r * 1.15, r * 0.8, 0, 0, TAU); ctx.fill();
+          ctx.restore();
+          ctx.beginPath();
+          ctx.moveTo(pr.x + off + r * 0.95, pr.y + oy - r * 0.2);
+          ctx.lineTo(pr.x + off + r * 0.95, pr.y + oy - r * 3.4);
+          ctx.stroke();
+        }
+        ctx.lineWidth = Math.max(1, r * 0.55);
+        ctx.beginPath();
+        ctx.moveTo(pr.x - dx / 2 + r * 0.95, pr.y + r * 0.5 - r * 3.4);
+        ctx.lineTo(pr.x + dx / 2 + r * 0.95, pr.y - r * 0.5 - r * 3.4);
+        ctx.stroke();
+      } else {
+        // single quaver
+        ctx.save();
+        ctx.translate(pr.x, pr.y);
+        ctx.rotate(-0.32);
+        ctx.beginPath(); ctx.ellipse(0, 0, r * 1.15, r * 0.8, 0, 0, TAU); ctx.fill();
+        ctx.restore();
+        ctx.beginPath();
+        ctx.moveTo(pr.x + r * 0.95, pr.y - r * 0.2);
+        ctx.lineTo(pr.x + r * 0.95, pr.y - r * 3.6);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(pr.x + r * 0.95, pr.y - r * 3.6);
+        ctx.quadraticCurveTo(pr.x + r * 2.6, pr.y - r * 3.0, pr.x + r * 2.0, pr.y - r * 1.4);
+        ctx.stroke();
+      }
       ctx.globalCompositeOperation = 'source-over';
     }
   }
@@ -2201,14 +2384,119 @@ function drawCompass() {
   ctx.fillStyle = `rgba(255,224,160,${a * 0.9})`;
   ctx.font = '11px Georgia';
   ctx.textAlign = 'center';
-  ctx.fillText(`${Math.round(bestD)} paces`, cx, cy + 26);
+  ctx.fillText(L(`${Math.round(bestD)} paces`, `${Math.round(bestD)} 步`), cx, cy + 26);
 }
 
 // ---------------- minigame UI — fixed screen-space overlay ----------------
 function mgInstruction() {
-  if (mg.type === 1) return 'hold SPACE — keep the fill inside the green zone';
-  if (mg.phase === 'listen') return 'listen\u2026';
-  return 'echo it back — tap SPACE as each note crosses the line';
+  if (mg.type === 1) return L('hold SPACE — keep the fill inside the green zone', '按住空格——让光点保持在绿色区域内');
+  if (mg.phase === 'listen') return L('listen\u2026', '聆听……');
+  return L('echo it back — tap SPACE as each note crosses the line', '回声应和——当音符越过基线时按 空格');
+}
+
+// explicit guide to the first voice — a gold marker over the instrument while
+// the tutorial leads you there, an edge arrow when it leaves the frame
+function drawTutGuide() {
+  if (!started || mg || tut.done || victoryT0 >= 0) return;
+  if (tut.step !== 2 && tut.step !== 3) return;
+  const tp = tut.target;
+  if (!tp || tp.found) return;
+  const d = Math.hypot(tp.x - p.x, tp.z - p.z);
+  const kIn = clamp((time - tut.t0) / 0.9, 0, 1);
+  const a = kIn * (0.72 + 0.16 * Math.sin(time * 2.4));
+  const fs = clamp(Math.min(W, H) * 0.017, 11, 16);
+  const label = L(`${INSTRUMENTS[tp.i].name.toLowerCase()} \u00b7 ${Math.round(d)} paces`, `${INSTRUMENTS[tp.i].zh} \u00b7 ${Math.round(d)} 步`);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(25,12,26,0.9)';
+  const pr = project(tp.x, groundH(tp.x, tp.z) + 1.7, tp.z);
+  const onScreen = pr && pr.x > W * 0.07 && pr.x < W * 0.93 && pr.y > H * 0.12 && pr.y < H * 0.88;
+  if (onScreen) {
+    // pulsing gold diamond floating above the instrument itself
+    const s = clamp(pr.s * 0.9, 5, 14);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#ffd98f';
+    ctx.shadowColor = 'rgba(255,180,90,0.85)';
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.moveTo(pr.x, pr.y - s * 1.9);
+    ctx.lineTo(pr.x + s, pr.y - s * 0.5);
+    ctx.lineTo(pr.x, pr.y + s);
+    ctx.lineTo(pr.x - s, pr.y - s * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = 'rgba(25,12,26,0.9)';
+    ctx.font = `italic ${fs}px Georgia, "Palatino Linotype", serif`;
+    ctx.fillStyle = `rgba(255,232,195,${a})`;
+    ctx.fillText(label, pr.x, pr.y - s * 2.6 - fs * 1.1);
+  } else {
+    // off-screen or behind — gold arrow from mid-screen along the bearing
+    const dx = tp.x - p.x, dz = tp.z - p.z;
+    const c = Math.cos(yaw), sn = Math.sin(yaw);
+    const vx = c * dx - sn * dz, vz = sn * dx + c * dz;
+    const L = Math.hypot(vx, vz) || 1;
+    const ax = W * 0.5 + (vx / L) * Math.min(W, H) * 0.3;
+    const ay = H * 0.46 + (-vz / L) * Math.min(W, H) * 0.3;
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(Math.atan2(-vz / L, vx / L));
+    ctx.globalAlpha = a * 0.95;
+    ctx.fillStyle = '#ffd98f';
+    ctx.shadowColor = 'rgba(255,180,90,0.85)';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.moveTo(16, 0); ctx.lineTo(-9, 9); ctx.lineTo(-4, 0); ctx.lineTo(-9, -9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.font = `italic ${fs}px Georgia, "Palatino Linotype", serif`;
+    ctx.fillStyle = `rgba(255,232,195,${a * 0.9})`;
+    ctx.fillText(label, ax, ay + 30);
+  }
+  ctx.restore();
+}
+
+// the tutorial whisper — top-center, one line at a time, never crowding the trial
+function drawTutorial() {
+  if (!started || mg || tut.done || victoryT0 >= 0) return;
+  const TXT = [
+    L('walk \u2014 W A S D or the arrow keys', '行走——W A S D 或方向键'),
+    L('look \u2014 Q and E turn, or drag the sand', '转头——Q 和 E，或拖动沙地'),
+    L('a voice hums beyond the dunes \u2014 follow the song', '沙丘之外有声音在哼唱——循声而去'),
+    L('stand close and press SPACE to sing', '走近些，按 空格 歌唱'),
+    '',
+    L('the altar keeps its voice \u2014 nine more sleep across the canyon', '祭坛收下了这个声音——峡谷各处还睡着九个'),
+    L('wander and listen \u2014 sing to any voice that stirs', '漫步聆听——向任何苏醒的声音歌唱'),
+  ];
+  const txt = TXT[tut.step];
+  if (!txt) return;
+  const kIn = clamp((time - tut.t0) / 0.9, 0, 1);
+  const a = kIn * tut.fade;
+  const x = W * 0.5, y = H * 0.135;
+  const fs = clamp(Math.min(W, H) * 0.022, 14, 24);
+  // full-width CJK glyphs render ~3x wider than the latin estimate
+  const cw = [...txt].reduce((n, c) => n + (c.charCodeAt(0) > 0x2e80 ? 3 : 1), 0);
+  ctx.save();
+  ctx.textAlign = 'center';
+  // soft backdrop so the whisper stays legible over bright sand
+  const bw = Math.max(fs * 6, fs * cw * 0.27);
+  const bg = ctx.createRadialGradient(x, y - fs * 0.4, fs * 0.5, x, y - fs * 0.4, bw);
+  bg.addColorStop(0, `rgba(22,13,25,${0.5 * a})`);
+  bg.addColorStop(1, 'rgba(22,13,25,0)');
+  ctx.fillStyle = bg;
+  ctx.fillRect(x - bw, y - fs * 2.4, bw * 2, fs * 3.6);
+  ctx.font = `italic ${fs}px Georgia, "Palatino Linotype", serif`;
+  ctx.fillStyle = `rgba(255,236,205,${a * (0.8 + 0.1 * Math.sin(time * 1.8))})`;
+  ctx.shadowColor = 'rgba(25,12,26,0.9)';
+  ctx.shadowBlur = 6;
+  ctx.fillText(txt, x, y);
+  if (tut.step === 2) {
+    ctx.font = `${fs * 0.72}px Georgia, "Palatino Linotype", serif`;
+    ctx.fillStyle = `rgba(255,236,205,${a * 0.62})`;
+    ctx.fillText(L('the stone guide leans the way \u2014 the song leads true', '石之罗盘指引方向——歌声引路为真'), x, y + fs * 1.5);
+  }
+  ctx.restore();
 }
 
 function drawMinigame() {
@@ -2243,12 +2531,12 @@ function drawMinigame() {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,236,205,0.96)';
     ctx.font = '600 24px Georgia';
-    ctx.fillText(INSTRUMENTS[mg.ti].name, cx, cy - Rmax - 62);
+    ctx.fillText(INSTR(mg.ti), cx, cy - Rmax - 62);
     ctx.fillStyle = `rgba(255,220,160,${0.62 + 0.28 * Math.sin(time * 5)})`;
     ctx.font = '16px Georgia';
     ctx.fillText(mgInstruction(), cx, cy - Rmax - 36);
     ctx.font = '15px Georgia';
-    ctx.fillText('get ready\u2026', cx, cy + Rmax + 52);
+    ctx.fillText(L('get ready\u2026', '准备……'), cx, cy + Rmax + 52);
     ctx.restore();
     return;
   }
@@ -2265,11 +2553,11 @@ function drawMinigame() {
     ctx.textAlign = 'center';
     ctx.font = '600 24px Georgia';
     ctx.fillStyle = `rgba(${col},${0.95 - 0.35 * k})`;
-    ctx.fillText(mg.phase === 'win' ? '\u266A harmony restored' : 'the voice slips away\u2026', cx, cy + 6);
+    ctx.fillText(mg.phase === 'win' ? L('\u266A harmony restored', '\u266A 和声已复原') : L('the voice slips away\u2026', '声音悄然离去\u2026\u2026'), cx, cy + 6);
     if (mg.phase === 'fail') {
       ctx.font = '15px Georgia';
       ctx.fillStyle = `rgba(255,220,160,${0.8 - 0.3 * k})`;
-      ctx.fillText('sing again to try once more', cx, cy + 34);
+      ctx.fillText(L('sing again to try once more', '再唱一次，重新尝试'), cx, cy + 34);
     }
     ctx.restore();
     return;
@@ -2284,7 +2572,7 @@ function drawMinigame() {
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,236,205,0.92)';
   ctx.font = '600 21px Georgia';
-  ctx.fillText(INSTRUMENTS[mg.ti].name, cx, cy - Rmax - 62);
+  ctx.fillText(INSTR(mg.ti), cx, cy - Rmax - 62);
   ctx.fillStyle = 'rgba(255,220,160,0.75)';
   ctx.font = '15px Georgia';
   ctx.fillText(mgInstruction(), cx, cy - Rmax - 38);
@@ -2376,7 +2664,7 @@ function drawEchoUI(cx, cy, Rmax) {
     ctx.textAlign = 'center';
     ctx.fillStyle = `rgba(255,236,205,${0.7 + 0.3 * Math.sin(time * 6)})`;
     ctx.font = '600 20px Georgia';
-    ctx.fillText('your turn\u2026', cx, staffY - halfH - 26);
+    ctx.fillText(L('your turn\u2026', '轮到你了……'), cx, staffY - halfH - 26);
     ctx.restore();
   }
 }
@@ -2539,6 +2827,8 @@ function draw() {
   ctx.restore();
 
   // minigame overlay last — above post-processing, always crisp
+  drawTutGuide();
+  drawTutorial();
   drawMinigame();
 }
 
