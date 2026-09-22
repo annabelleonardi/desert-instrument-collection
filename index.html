@@ -30,6 +30,8 @@
   #audioBtn svg{width:20px;height:20px;stroke:#f0d7a8;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
   #audioBtn.on .offI{display:none}
   #audioBtn:not(.on) .onI{display:none}
+  #resetBtn{position:absolute;top:74px;right:24px;pointer-events:auto;background:rgba(30,15,40,.35);border:1px solid rgba(245,205,150,.4);border-radius:50%;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#e8d4ae;font-size:16px;line-height:1;font-family:inherit;transition:background .3s,border-color .3s;opacity:.85}
+  #resetBtn:hover{background:rgba(70,35,70,.5);border-color:rgba(245,205,150,.8);color:#ffe7bb}
   #hint{position:absolute;bottom:28px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:3px;opacity:0;visibility:hidden;transition:opacity 1.8s ease,visibility 0s linear 1.8s;text-transform:uppercase}
   #hint.show{opacity:.7;visibility:visible;transition:opacity 1.8s ease,visibility 0s linear 0s}
   #toast{position:absolute;bottom:74px;left:0;right:0;text-align:center;font-size:15px;font-style:italic;letter-spacing:2px;opacity:0;visibility:hidden;transition:opacity .9s ease,visibility 0s linear .9s;color:#ffe7bb;text-shadow:0 0 18px rgba(255,190,110,.55)}
@@ -44,6 +46,8 @@
   #title .story p{margin:0;opacity:0;animation:storyIn 2.2s ease forwards}
   #title .story p:nth-child(2){animation-delay:1.6s}
   #title .story p:nth-child(3){animation-delay:3.2s}
+  #title .sndnote{font-size:12px;letter-spacing:2px;line-height:1.9;color:#ffe7bb;margin:-8px 0 24px;opacity:0;animation:storyIn 2.2s ease 4.6s forwards;text-shadow:0 0 14px rgba(255,200,120,.55)}
+  #title .lastrun{font-size:12px;letter-spacing:1.5px;line-height:1.8;font-style:italic;color:#bda382;margin:-8px 0 22px;opacity:0;animation:storyIn 2.2s ease 5.4s forwards}
   #title .langbtns{margin:0 0 40px;display:flex;gap:12px}
   #title .langbtns button{background:rgba(40,18,45,.45);border:1px solid rgba(245,205,150,.45);color:#e8d4ae;font-family:inherit;font-size:12px;letter-spacing:2px;padding:8px 22px;cursor:pointer;border-radius:3px;transition:all .3s}
   #title .langbtns button:hover{border-color:#ffd98f}
@@ -95,6 +99,7 @@
     <svg class="onI" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><path d="M16 9.2c1.3 1.2 1.3 4.4 0 5.6"/><path d="M18.6 7c2.4 2.4 2.4 7.6 0 10"/></svg>
     <svg class="offI" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><line x1="16.5" y1="9.5" x2="21" y2="14.5"/><line x1="21" y1="9.5" x2="16.5" y2="14.5"/></svg>
   </button>
+  <button id="resetBtn" title="begin a new walk">&#x27F2;</button>
   <input id="vol" type="range" min="0" max="1" step="0.01" value="0.9" aria-label="master volume">
   <div id="touchui">
     <div id="tdpad">
@@ -116,6 +121,8 @@
       <p>when the voices scattered, the sanctuary fell silent</p>
       <p>you are the last songkeeper — walk, listen, and sing the voices home</p>
     </div>
+    <p class="sndnote">♪ this canyon is heard, not seen — please play with sound on</p>
+    <p class="lastrun" id="lastRunLine" style="display:none"></p>
     <div class="langbtns">
       <button data-lang="en">English</button>
       <button data-lang="zh">中文</button>
@@ -461,30 +468,30 @@ const A = {
     const c = this.ctx, t = c.currentTime + when;
     // membrane: sine sweep that lands in the midrange so the pitch reads on any speaker
     const o = c.createOscillator(); o.type = 'sine';
-    const f0 = deep ? 96 : 190, f1 = deep ? 58 : 105, dc = deep ? 0.7 : 0.24;
+    const f0 = deep ? 112 : 190, f1 = deep ? 66 : 105, dc = deep ? 0.75 : 0.24;
     o.frequency.setValueAtTime(f0, t);
     o.frequency.exponentialRampToValueAtTime(f1, t + dc);
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(vol, t + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + (deep ? 1.1 : 0.45));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (deep ? 1.3 : 0.45));
     o.connect(g); this.route(g, 0.9, 0.3, pan);
-    o.start(t); o.stop(t + (deep ? 1.2 : 0.55));
+    o.start(t); o.stop(t + (deep ? 1.4 : 0.55));
     // mallet overtone — the part small speakers can actually sing
     const o2 = c.createOscillator(); o2.type = 'triangle';
-    o2.frequency.setValueAtTime(deep ? 290 : 640, t);
+    o2.frequency.setValueAtTime(deep ? 320 : 640, t);
     o2.frequency.exponentialRampToValueAtTime(f1 * 2, t + dc * 0.7);
     const g2 = c.createGain();
     g2.gain.setValueAtTime(0.0001, t);
-    g2.gain.linearRampToValueAtTime(vol * 0.4, t + 0.006);
-    g2.gain.exponentialRampToValueAtTime(0.0001, t + (deep ? 0.5 : 0.2));
+    g2.gain.linearRampToValueAtTime(vol * (deep ? 0.55 : 0.4), t + 0.006);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + (deep ? 0.65 : 0.2));
     o2.connect(g2); this.route(g2, 0.8, 0.3, pan);
-    o2.start(t); o2.stop(t + (deep ? 0.6 : 0.3));
+    o2.start(t); o2.stop(t + (deep ? 0.75 : 0.3));
     // skin slap in the mids
     const n = this.noiseSrc(t, 0.12);
-    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = deep ? 480 : 950; bp.Q.value = 0.9;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = deep ? 400 : 950; bp.Q.value = 0.9;
     const ng = c.createGain();
-    ng.gain.setValueAtTime(vol * 0.55, t);
+    ng.gain.setValueAtTime(vol * (deep ? 0.7 : 0.55), t);
     ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
     n.connect(bp); bp.connect(ng); this.route(ng, 0.8, 0.2, pan);
   },
@@ -525,9 +532,13 @@ const A = {
   },
   vChoir(freq, when, dur, vol, pan) {
     if (!this.ctx || this.ctx.state !== 'running') return;
-    const c = this.ctx, t = c.currentTime + when;
+    const c = this.ctx;
+    // a fast attack so the choir lands ON the beat like the plucks and drums —
+    // the old dur*0.3 swell was ~2s late on this phrase's long tones
+    const atk = Math.min(0.3, dur * 0.12);
+    const t = c.currentTime + Math.max(0, when - atk * 0.6);
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1200;
-    const g = c.createGain(); this.env(g, t, vol, dur * 0.3, dur, dur * 0.4);
+    const g = c.createGain(); this.env(g, t, vol, atk, dur, dur * 0.4);
     const vib = c.createOscillator(); vib.frequency.value = 4.2;
     const vg = c.createGain(); vg.gain.value = 6;
     vib.connect(vg); vib.start(t); vib.stop(t + dur + 0.5);
@@ -558,7 +569,7 @@ const A = {
       case 'pluckBright': this.vPluck(f, w, d, 0.13 * volScale, pan, 9); break;
       case 'flute': this.vFlute(f, w, d, 0.12 * volScale, pan); break;
       case 'drum': this.vDrum(w, 0.2 * volScale, pan); break;
-      case 'drumDeep': this.vDrum(w, 0.24 * volScale, pan, true); break;
+      case 'drumDeep': this.vDrum(w, 0.34 * volScale, pan, true); break;
       case 'bell': this.vBell(f, w, Math.max(d * 2.2, 2.4), 0.11 * volScale, pan); break;
       case 'shaker': this.vShaker(w, 0.075 * volScale, pan); break;
       case 'horn': this.vHorn(f, w, d, 0.12 * volScale, pan); break;
@@ -621,11 +632,18 @@ const MINIGAMES = [
 const XMAX = 114, ZMIN = -24, ZMAX = 169;             // walkable bounds
 const ALTAR = { x: 0, z: 150 };                       // the focal landmark
 
-// gentle rolling floor inside the arena (units ~ meters)
+// rolling floor inside the arena (units ~ meters): a gentle base plus broad
+// dune swells that give the canyon real ridges and hollows
 function groundH(x, z) {
-  return 0.9 * Math.sin(x * 0.05 + z * 0.03)
+  const base = 0.9 * Math.sin(x * 0.05 + z * 0.03)
        + 0.6 * Math.sin(x * 0.11 - z * 0.07 + 2)
        + 0.3 * Math.sin((x + z) * 0.15 + 4.2);
+  // broad swells — the dunes themselves, damped near the altar plaza so the
+  // ritual ground (pyramid, restoration features, finale ring) stays even
+  const dAlt = Math.hypot(x - ALTAR.x, z - ALTAR.z);
+  const swell = 2.6 * Math.sin(x * 0.017 + 1.3) * Math.sin(z * 0.013 + 0.7)
+              + 1.5 * Math.sin(x * 0.031 - z * 0.024 + 5.1);
+  return base + swell * clamp(dAlt / 42, 0, 1);
 }
 // distant parallax dunes, seen over the walls (far silhouettes only)
 function ridgeH(k, x) {
@@ -668,6 +686,29 @@ const landmarks = [
   [55, 125, 0, 1.4], [-30, 100, 1, 1.1], [15, 160, 0, 1.5], [-115, 70, 0, 1.8],
   [115, 90, 1, 1.6], [70, 55, 0, 1.2]
 ].map(([x, z, kind, s]) => ({ x, z, kind, s }));
+
+// the canyon's old bones: tall pillars, obelisk monuments, great arches, mesas —
+// big enough to catch the eye, solid enough that the traveler must walk around
+const PROPS = [
+  { x: -58, z: 40, kind: 0, s: 5.0 },   // tall pillar
+  { x: 58, z: 58, kind: 0, s: 4.6 },
+  { x: -30, z: 135, kind: 0, s: 4.8 },
+  { x: 88, z: 20, kind: 0, s: 4.4 },
+  { x: -86, z: 118, kind: 0, s: 5.2 },
+  { x: 20, z: 105, kind: 0, s: 4.6 },
+  { x: -12, z: 30, kind: 1, s: 4.6 },   // obelisk monument
+  { x: 65, z: 125, kind: 1, s: 4.8 },
+  { x: -70, z: 160, kind: 1, s: 4.4 },
+  { x: 35, z: 40, kind: 2, s: 4.0 },    // great arch
+  { x: -45, z: 75, kind: 2, s: 3.8 },
+  { x: -100, z: 70, kind: 3, s: 3.2 },  // mesa slab
+  { x: 105, z: 95, kind: 3, s: 3.0 },
+  { x: 8, z: 85, kind: 3, s: 2.8 }
+].map(o => ({ ...o, r: o.kind === 3 ? o.s * 2.1 : o.s * 0.62 }));
+// solid colliders — an arch blocks with both legs
+const PROP_COLS = PROPS.flatMap(o => o.kind === 2
+  ? [{ x: o.x - o.s * 1.15, z: o.z, r: o.s * 0.55 }, { x: o.x + o.s * 1.15, z: o.z, r: o.s * 0.55 }]
+  : [{ x: o.x, z: o.z, r: o.r }]);
 
 // lore stones: inscribed tablets that reveal the sanctuary's story
 const loreStones = [
@@ -717,6 +758,7 @@ let compassPref = false;             // accessibility toggle (C) — the songs l
 let humBar = -1;                     // bar index of the last scheduled treasure hum
 let slide = null;                    // active sand-slide, or null
 let lastSingTipT = 0;                // last time the "press SPACE to sing" nudge fired
+let lastAltarTipT = -9;              // last time the "return to the altar" nudge fired
 const HUMINT = [0, 2, 3, 5, 7, 10, 12, 14, 15, 17];   // each voice's answer interval
 
 // restoration: every recovered voice physically re-awakens part of the shrine
@@ -770,6 +812,11 @@ function loadProgress() {
   } catch (e) { return null; }
 }
 function clearProgress() { try { localStorage.removeItem(PROG_KEY); } catch (e) {} }
+// memory between walks: the last finished journey's song stays in the canyon
+// even after 'begin anew' — each round joins the same long song
+const LASTRUN_KEY = 'sandsong_lastrun_v1';
+let lastRun = null;
+try { lastRun = JSON.parse(localStorage.getItem(LASTRUN_KEY) || 'null'); } catch (e) { lastRun = null; }
 function restoreRun(d) {
   for (const i of d.order) {
     const t = treasures[i];
@@ -796,6 +843,7 @@ const gemsEl = document.getElementById('gems');
 const hcountEl = document.getElementById('hcount');
 const secnameEl = document.getElementById('secname');
 const audioBtn = document.getElementById('audioBtn');
+audioBtn.classList.add('on');   // sound is on by default — the title icon should say so
 const victoryEl = document.getElementById('victory');
 const vstatEl = document.getElementById('vstat');
 const volEl = document.getElementById('vol');
@@ -806,6 +854,19 @@ let lang = 'en';
 try { if (localStorage.getItem('sandsong_lang') === 'zh') lang = 'zh'; } catch (e) {}
 const L = (en, zh) => lang === 'zh' ? zh : en;
 const INSTR = i => lang === 'zh' ? INSTRUMENTS[i].zh : INSTRUMENTS[i].name;
+
+// every journey names its own song, drawn from the order the voices came home
+const SONG_ADJ = ['Golden', 'Wandering', 'Quiet', 'Dawning', 'Amber', 'Patient', 'Long', 'First'];
+const SONG_NOUN = ['Reunion', 'Circuit', 'Vigil', 'Procession', 'Prayer', 'Caravan', 'Lullaby', 'Rite'];
+const SONG_ADJ_ZH = ['金色', '流浪', '静谧', '黎明', '琥珀', '守候', '漫长', '初绽'];
+const SONG_NOUN_ZH = ['重逢', '巡游', '守望', '行进', '祈祷', '商旅', '摇篮曲', '仪式'];
+function sanctuarySongTitle(order) {
+  const h = order.reduce((a, i) => (a * 31 + i + 1) % 9973, 7);
+  const adj = SONG_ADJ[h % SONG_ADJ.length], noun = SONG_NOUN[Math.floor(h / SONG_ADJ.length) % SONG_NOUN.length];
+  const adjZh = SONG_ADJ_ZH[h % SONG_ADJ_ZH.length], nounZh = SONG_NOUN_ZH[Math.floor(h / SONG_ADJ_ZH.length) % SONG_NOUN_ZH.length];
+  return L(`${adj} ${noun}`, `${adjZh}${nounZh}`);
+}
+
 function applyLang() {
   document.querySelector('#title h1').textContent = L('SANDSONG', '沙之歌');
   document.querySelector('#title .sub').textContent = L('the sanctuary remembers its song', '圣所仍记得它的歌');
@@ -816,6 +877,15 @@ function applyLang() {
       'you are the last songkeeper — walk, listen, and sing the voices home'][i], zhStory[i]);
   });
   document.querySelector('#title .press').textContent = L('click anywhere to begin', '点击任意处开始');
+  document.querySelector('#title .sndnote').textContent =
+    L('\u266A this canyon is heard, not seen \u2014 please play with sound on', '\u266A 这片峡谷用耳朵游玩\u2014\u2014请打开声音');
+  const lrEl = document.getElementById('lastRunLine');
+  if (lastRun && Array.isArray(lastRun.order) && lastRun.order.length === 10) {
+    const st = sanctuarySongTitle(lastRun.order);
+    lrEl.textContent = L(`the last songkeeper left behind \u201CThe ${st}\u201D`, `上一位守歌人留下了《${st}》`)
+      + (ghost ? L(' \u2014 their echo still walks these dunes', '\u2014\u2014那位旅人的回声仍在沙丘间行走') : '');
+    lrEl.style.display = 'block';
+  } else lrEl.style.display = 'none';
   document.getElementById('contBtn').textContent = L('continue the walk', '继续行走');
   document.getElementById('newBtn').textContent = L('begin anew', '重新开始');
   document.querySelectorAll('#title .langbtns button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
@@ -882,8 +952,20 @@ function showBanner(txt) {
   bannerEl.classList.add('show');
   setTimeout(() => bannerEl.classList.remove('show'), 9000);
 }
-document.getElementById('stayBtn').addEventListener('click', () => victoryEl.classList.remove('show'));
+document.getElementById('stayBtn').addEventListener('click', () => {
+  victoryEl.classList.remove('show');
+  if (finale) finale.showVictoryT = 0;   // dismissed stays dismissed
+});
 document.getElementById('againBtn').addEventListener('click', () => { clearProgress(); location.reload(); });
+// ⟲ — begin a new walk from anywhere; the finished songs stay in the canyon
+const resetBtn = document.getElementById('resetBtn');
+resetBtn.addEventListener('pointerdown', e => e.stopPropagation());
+resetBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (confirm(L('begin a new walk? the unfinished one will be left to the sand', '重新开始一段行走？未完成的旅程将归于沙土'))) {
+    clearProgress(); location.reload();
+  }
+});
 
 // resume row: offered only when a saved walk exists; begin-anew erases it
 const savedProg = loadProgress();
@@ -899,7 +981,10 @@ document.getElementById('newBtn').addEventListener('click', e => { e.stopPropaga
 function start(resume) {
   if (started) return;
   started = true;
-  if (resume && savedProg) restoreRun(savedProg);
+  if (resume && savedProg) {
+    restoreRun(savedProg);
+    showToast(L(`the walk resumes \u2014 ${litCount} ${litCount === 1 ? 'voice' : 'voices'} already sing`, `行走继续——已有 ${litCount} 个声音在歌唱`));
+  }
   audioBtn.classList.add('on');
   titleEl.classList.add('hidden');
   harmonyEl.classList.add('show');
@@ -914,7 +999,7 @@ function start(resume) {
   A.tone(midiF(81), { when: 0.4, vol: 0.05, dur: 3, wet: 0.8 });
 }
 function toggleAudio() {
-  if (!A.ctx) { start(!!savedProg); return; }
+  if (!A.ctx) { start(false); return; }
   if (A.ctx.state === 'running') {
     A.ctx.suspend(); audioBtn.classList.remove('on');
     showToast(L('the sound sleeps \u2014 press M to wake it', '乐声已静——按 M 唤醒'));
@@ -962,8 +1047,8 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => keys[e.code] = false);
 let dragging = false, dragX = 0;
 addEventListener('pointerdown', e => {
-  if (!started) { start(!!savedProg); return; }
-  dragging = true; dragX = e.clientX;
+  if (!started) { start(false); return; }   // click anywhere = a fresh walk;
+  dragging = true; dragX = e.clientX;       // resuming is the explicit button
 });
 addEventListener('pointermove', e => {
   if (dragging) { yaw += (e.clientX - dragX) * 0.0032; dragX = e.clientX; }
@@ -1040,6 +1125,24 @@ function sing() {
     waves.push({ x: p.x, z: p.z, r: 0.5, max: 14 });
     return;
   }
+  if (finale && finale.ended) {
+    // the song stands complete — but sung into the quiet, the sanctuary still
+    // answers once, softly, in the order it was taught
+    A.sing(midiF(62));
+    if (ending === 'completed' && collectOrder.length === 10) {
+      if (!finale.ansTip) {
+        finale.ansTip = true;
+        showToast(L('the canyon is quiet \u2014 but sing, and it still answers', '峡谷已静——但只要歌唱，它仍会回应'));
+      }
+      const sp = A.panFor(ALTAR.x, ALTAR.z);
+      A._sp = sp;
+      for (const i of collectOrder) A.playPhrase(INSTRUMENTS[i], 0.5, 0.35, sp.pan, sp);
+      A._sp = null;
+      sparkleAt(ALTAR.x, 11, ALTAR.z, 10);
+      waves.push({ x: ALTAR.x, z: ALTAR.z, r: 0.6, max: 18, faint: Math.hypot(ALTAR.x - p.x, ALTAR.z - p.z) > 100 });
+    }
+    return;
+  }
   if (finale) { finaleConduct(); return; }   // before the altar, a sung note is the baton
   A.sing(litCount > 0 ? midiF(62) : null);
   // sonar: unfound instruments answer from the ruins
@@ -1052,7 +1155,13 @@ function sing() {
         when: 0.3 + d / 130, vol: 0.014 + 0.1 * sp.gain,
         dur: 2.6, wet: 0.9, pan: sp.pan, sp
       });
-      waves.push({ x: t.x, z: t.z, r: 0.4, max: 9, faint: true });
+      const near = clamp(1 - d / 220, 0, 1);
+      waves.push({ x: t.x, z: t.z, r: 0.4, max: 6 + 13 * near, faint: d > 110 });
+      t.revealT = time;                        // the answer lifts it from the sand
+      if (d < 90) {
+        sparkleAt(t.x, groundH(t.x, t.z) + 1.4, t.z, 4);
+        waves.push({ x: t.x, z: t.z, r: 0.4, max: 14, faint: false });
+      }
     }
   }
 }
@@ -1239,18 +1348,6 @@ function awaken(t) {
   if (litCount === 10) finaleReady = true;   // the altar waits for its songkeeper
 }
 
-// every journey names its own song, drawn from the order the voices came home
-const SONG_ADJ = ['Golden', 'Wandering', 'Quiet', 'Dawning', 'Amber', 'Patient', 'Long', 'First'];
-const SONG_NOUN = ['Reunion', 'Circuit', 'Vigil', 'Procession', 'Prayer', 'Caravan', 'Lullaby', 'Rite'];
-const SONG_ADJ_ZH = ['金色', '流浪', '静谧', '黎明', '琥珀', '守候', '漫长', '初绽'];
-const SONG_NOUN_ZH = ['重逢', '巡游', '守望', '行进', '祈祷', '商旅', '摇篮曲', '仪式'];
-function sanctuarySongTitle(order) {
-  const h = order.reduce((a, i) => (a * 31 + i + 1) % 9973, 7);
-  const adj = SONG_ADJ[h % SONG_ADJ.length], noun = SONG_NOUN[Math.floor(h / SONG_ADJ.length) % SONG_NOUN.length];
-  const adjZh = SONG_ADJ_ZH[h % SONG_ADJ_ZH.length], nounZh = SONG_NOUN_ZH[Math.floor(h / SONG_ADJ_ZH.length) % SONG_NOUN_ZH.length];
-  return L(`${adj} ${noun}`, `${adjZh}${nounZh}`);
-}
-
 // ---------------- the conducted finale ----------------
 // ten voices approach the altar one at a time, in the order they came home.
 // each hovers a breath away, then waits — the player's sung note is the baton.
@@ -1278,6 +1375,8 @@ function finaleSend() {
   f.arrT = (Math.floor(time / LOOPLEN) + 1) * LOOPLEN + 1.2;
   if (f.arrT - time < 3) f.arrT += LOOPLEN;
   f.lastCueT = 0;
+  if (f.idx < 2)                             // teach the baton, then let it breathe
+    showHint(L('sing \u2014 press SPACE as the ring closes on the voice', '当光环收拢到声音上时，按 空格 应和'), 3.6);
 }
 // the sung note lands: the voice rises into the altar and joins the chord
 function finaleRelease() {
@@ -1286,14 +1385,22 @@ function finaleRelease() {
   f.rel.push(i);
   const sp = A.panFor(ALTAR.x, ALTAR.z);
   A._sp = sp;
-  A.playPhrase(INSTRUMENTS[i], 0.95, 0, sp.pan, sp);
+  A.playPhrase(INSTRUMENTS[i], 1.5, 0, sp.pan, sp);   // the caught voice rings out in its own timbre
   A._sp = null;
-  A.tone(midiF(74 + i) * 2, { when: 0.5, vol: 0.04, dur: 3.2, wet: 0.9 });
+  A.tone(midiF(74 + i) * 2, { when: 0.5, vol: 0.05, dur: 3.2, wet: 0.9 });
   sparkleAt(f.pos.x, f.pos.y, f.pos.z, 30);
   sparkleAt(ALTAR.x, 11, ALTAR.z, 16);
   waves.push({ x: ALTAR.x, z: ALTAR.z, r: 0.6, max: 24 });
   f.idx++;
-  if (f.idx >= f.order.length) { f.st = 'done'; f.ended = true; f.endT = time; }
+  if (f.idx >= f.order.length) {
+    f.st = 'done'; f.ended = true; f.endT = time;
+    // the walk is over but the song remains — this round joins the canyon's memory
+    try { localStorage.setItem(LASTRUN_KEY, JSON.stringify({ v: 1, order: collectOrder.slice(), time: Math.floor(time) })); } catch (e) {}
+    // the song stands complete — one great golden breath
+    sparkleAt(ALTAR.x, 12, ALTAR.z, 90);
+    waves.push({ x: ALTAR.x, z: ALTAR.z, r: 0.6, max: 42 });
+    waves.push({ x: ALTAR.x, z: ALTAR.z, r: 0.2, max: 30 });
+  }
   else { f.st = 'wait'; f.waitT = time + 1.7; }
 }
 // Space before the altar is the baton — one sung note, on the arrival breath
@@ -1309,10 +1416,10 @@ function finaleConduct() {
 function updateFinale(dt) {
   const f = finale;
   if (!f || f.ended) return;
-  // the hover point floats between the traveler and the altar
+  // the hover point floats beyond the pyramid's skirts, between traveler and altar
   const dx = p.x - ALTAR.x, dz = p.z - ALTAR.z, dd = Math.hypot(dx, dz) || 1;
-  f.hov.x = ALTAR.x + dx / dd * 9;
-  f.hov.z = ALTAR.z + dz / dd * 9;
+  f.hov.x = ALTAR.x + dx / dd * 22;
+  f.hov.z = ALTAR.z + dz / dd * 22;
   f.hov.y = groundH(f.hov.x, f.hov.z) + 2.4;
   if (f.st === 'wait' && time > f.waitT) finaleSend();
   if (f.st === 'in') {
@@ -1439,6 +1546,14 @@ function update(dt) {
     const dx = p.x - ALTAR.x, dz = p.z - ALTAR.z, d = Math.hypot(dx, dz);
     if (d < 17 && d > 0.001) { p.x = ALTAR.x + dx / d * 17; p.z = ALTAR.z + dz / d * 17; }
   }
+  // the standing stones are solid too — the canyon must be walked around
+  for (const c of PROP_COLS) {
+    let dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz);
+    if (d < c.r) {
+      if (d < 0.001) { dx = 1; dz = 0; d = 1; }  // dead center: eject eastward
+      p.x = c.x + dx / d * c.r; p.z = c.z + dz / d * c.r;
+    }
+  }
   p.moving = Math.hypot(p.vx, p.vz) > 1.5;
 
   // gentle nudge: if the wanderer hasn't sung in a long while, remind them
@@ -1489,13 +1604,16 @@ function update(dt) {
   if (started && A.ctx && A.ctx.state === 'running') {
     const now = A.ctx.currentTime;
     if (finale && !finale.ended) {
-      // the conducted chord: only the released voices sing, bar after bar,
-      // while the canyon holds its breath for the ones still coming home
-      if (finale.rel.length) {
+      // the conducted chord: released voices sing bar after bar, and the voice
+      // in flight sings its own phrase over them — you hear who you're catching
+      const calling = finale.st === 'wait' ? -1 : finale.order[finale.idx];
+      if (finale.rel.length || calling >= 0) {
         if (loopNext < now - 0.05) loopNext = now + 0.12;
         while (loopNext < now + 0.9) {
           for (const i of finale.rel)
-            A.playPhrase(INSTRUMENTS[i], 0.6, loopNext - now, IPANS[i]);
+            A.playPhrase(INSTRUMENTS[i], 0.8, loopNext - now, IPANS[i]);
+          if (calling >= 0)
+            A.playPhrase(INSTRUMENTS[calling], 1.05, loopNext - now, IPANS[calling]);
           loopNext += LOOPLEN;
         }
       }
@@ -1530,6 +1648,11 @@ function update(dt) {
   }
 
   // --- the altar calls its songkeeper: come near with ten voices home ---
+  // ten voices home — the canyon tells the songkeeper where the song happens
+  if (finaleReady && !finale && started && time - lastAltarTipT > 12) {
+    lastAltarTipT = time;
+    showHint(L('ten voices sing within you \u2014 the altar calls you back', '十个声音在你之中齐鸣——祭坛在唤你回去'), 5);
+  }
   if (finaleReady && !finale && started && Math.hypot(p.x - ALTAR.x, p.z - ALTAR.z) < 30) beginFinale();
   // --- the unmarked choice: once the chord stands, walking away is an answer.
   //     no prompt, no UI — the sanctuary sings on behind you, and it shows ---
@@ -1885,6 +2008,88 @@ function drawLandmark(lm) {
   }
 }
 
+// the canyon's old bones, drawn large: pillars with broken crowns, glyph-banded
+// obelisks, arches you can walk beneath, mesa slabs — same stone language as the ruins
+function drawProp(o) {
+  const gy0 = groundH(o.x, o.z);
+  const pr = project(o.x, gy0, o.z);
+  if (!pr || pr.x < -220 || pr.x > W + 220) return;
+  const s = pr.s, x = pr.x, gy = pr.y;
+  const fog = clamp(pr.vz / 260, 0, 1);
+  const col = fogMix('#33202e', fog);
+  const rim = `rgba(255,190,130,${0.22 * (1 - fog)})`;
+  ctx.fillStyle = col;
+  ctx.strokeStyle = col;
+  const sz = o.s * s;
+  drawShadow(o.x, o.z, o.s * 1.3);
+  if (o.kind === 0) {                        // tall pillar
+    const w = 0.5 * sz, h = 3.1 * sz;
+    ctx.fillRect(x - w, gy - h, w * 2, h);
+    ctx.beginPath();                         // the broken crown
+    ctx.moveTo(x - w, gy - h);
+    ctx.lineTo(x - w * 0.35, gy - h - 0.4 * sz);
+    ctx.lineTo(x + w * 0.45, gy - h - 0.22 * sz);
+    ctx.lineTo(x + w, gy - h - 0.5 * sz);
+    ctx.lineTo(x + w, gy - h);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = rim; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + w, gy); ctx.lineTo(x + w, gy - h - 0.4 * sz);
+    ctx.moveTo(x - w * 0.35, gy - h - 0.4 * sz); ctx.lineTo(x - w * 0.35, gy - h * 0.2);
+    ctx.stroke();
+  } else if (o.kind === 1) {                 // obelisk monument
+    const hb = 0.6 * sz, ht = 0.24 * sz, h = 3.6 * sz;
+    ctx.beginPath();
+    ctx.moveTo(x - hb, gy);
+    ctx.lineTo(x - ht, gy - h);
+    ctx.lineTo(x + ht, gy - h);
+    ctx.lineTo(x + hb, gy);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();                         // the pyramidion tip catches the light
+    ctx.moveTo(x - ht, gy - h); ctx.lineTo(x, gy - h - 0.42 * sz); ctx.lineTo(x + ht, gy - h);
+    ctx.closePath();
+    ctx.fillStyle = fogMix('#4a3040', fog); ctx.fill();
+    // bands of old glyphs on the shaft
+    ctx.strokeStyle = `rgba(255,214,150,${0.3 * (1 - fog)})`;
+    ctx.lineWidth = Math.max(1, 0.05 * sz);
+    for (let i = 0; i < 3; i++) {
+      const u = 0.42 + i * 0.14;
+      const half = hb + (ht - hb) * u;
+      ctx.beginPath();
+      ctx.moveTo(x - half * 0.72, gy - h * u);
+      ctx.lineTo(x + half * 0.72, gy - h * u);
+      ctx.stroke();
+    }
+  } else if (o.kind === 2) {                 // great arch — walk beneath it
+    const w = 0.5 * sz, h = 2.4 * sz, span = 1.15 * sz;
+    ctx.fillRect(x - span - w, gy - h, w * 2, h);
+    ctx.fillRect(x + span - w, gy - h, w * 2, h);
+    ctx.beginPath();                         // the lintel bridging the legs
+    ctx.moveTo(x - span - w, gy - h);
+    ctx.lineTo(x - span - w * 0.8, gy - h - 0.55 * sz);
+    ctx.lineTo(x + span + w * 0.8, gy - h - 0.55 * sz);
+    ctx.lineTo(x + span + w, gy - h);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = rim; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - span - w, gy); ctx.lineTo(x - span - w, gy - h - 0.4 * sz);
+    ctx.moveTo(x + span + w, gy); ctx.lineTo(x + span + w, gy - h - 0.5 * sz);
+    ctx.stroke();
+  } else {                                   // mesa slab
+    const w = 2.4 * sz, h = 1.4 * sz;
+    ctx.fillRect(x - w, gy - h, w * 2, h);
+    ctx.beginPath();
+    ctx.moveTo(x - w, gy - h);
+    ctx.lineTo(x - w * 0.8, gy - h - 0.3 * sz);
+    ctx.lineTo(x + w * 0.7, gy - h - 0.24 * sz);
+    ctx.lineTo(x + w, gy - h - 0.1 * sz);
+    ctx.lineTo(x + w, gy - h);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = rim; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x + w, gy); ctx.lineTo(x + w, gy - h - 0.15 * sz); ctx.stroke();
+  }
+}
+
 // the grand altar: a stepped pyramid with ten gem sockets and a light pillar
 function drawAltar() {
   const tiers = [18, 14, 10.5, 7];
@@ -2059,7 +2264,11 @@ function drawTreasure(t) {
   }
   const gy0 = groundH(x, z);
   const bob = t.found ? 0 : Math.sin(time * 1.7 + t.ph) * 0.25;
-  const y = gy0 + 1.35 + bob + arc;
+  // a sleeping voice lies buried in the sand; a sung answer lifts it into the air
+  const rev = t.found ? 0 : clamp(1 - (time - (t.revealT || -9)) / 2.6, 0, 1);
+  const nearK = t.found ? 0 : clamp(1 - Math.hypot(t.x - p.x, t.z - p.z) / 26, 0, 1);
+  const risen = t.found ? 1 : Math.max(rev, nearK * 0.85);
+  const y = t.found ? gy0 + 1.35 + bob + arc : gy0 + 0.22 + 0.5 * risen + bob * 0.5 * risen;
   const pr = project(x, y, z);
   if (!pr || pr.x < -80 || pr.x > W + 80) return;
   const s = pr.s, px = pr.x, py = pr.y;
@@ -2067,24 +2276,25 @@ function drawTreasure(t) {
 
   if (!t.found) drawShadow(x, z, 0.8);
 
-  // vertical light beam
+  // vertical light beam — a buried voice barely peeps from the sand
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const nearK = !t.found ? clamp(1 - Math.hypot(t.x - p.x, t.z - p.z) / 26, 0, 1) : 0;
-  const beamA = t.found ? 0.5 : 0.16 + 0.08 * Math.sin(time * 2.4 + t.ph) + nearK * 0.3;
+  const beamA = t.found ? 0.5 : (0.04 + 0.03 * Math.sin(time * 2.4 + t.ph)) + 0.55 * rev + 0.3 * nearK;
+  const bh = t.found ? 26 * s : (8 + 18 * Math.max(rev, nearK)) * s;
   const bw = 0.55 * s;
-  const bg = ctx.createLinearGradient(0, py - 26 * s, 0, py);
+  const bg = ctx.createLinearGradient(0, py - bh, 0, py);
   bg.addColorStop(0, 'rgba(255,215,150,0)');
   bg.addColorStop(1, `rgba(255,215,150,${beamA})`);
   ctx.fillStyle = bg;
-  ctx.fillRect(px - bw, py - 26 * s, bw * 2, 26 * s);
+  ctx.fillRect(px - bw, py - bh, bw * 2, bh);
 
-  // glowing orb
-  const R = (0.85 + 0.12 * Math.sin(time * 3 + t.ph) + nearK * 0.2) * s;
+  // glowing orb — dim and half-sunk while asleep, bright when it answers
+  const R = ((0.55 + 0.5 * risen) + 0.12 * Math.sin(time * 3 + t.ph) + nearK * 0.2) * s;
   const og = ctx.createRadialGradient(px, py, 0, px, py, R * 2.4);
   const hue = t.found ? '255,222,160' : nearK > 0.5 ? '255,235,180' : '255,205,150';
-  og.addColorStop(0, `rgba(${hue},0.95)`);
-  og.addColorStop(0.4, `rgba(${hue},0.5)`);
+  const oa = 0.55 + 0.45 * risen;
+  og.addColorStop(0, `rgba(${hue},${0.95 * oa})`);
+  og.addColorStop(0.4, `rgba(${hue},${0.5 * oa})`);
   og.addColorStop(1, `rgba(${hue},0)`);
   ctx.fillStyle = og;
   ctx.fillRect(px - R * 2.4, py - R * 2.4, R * 4.8, R * 4.8);
@@ -2384,16 +2594,6 @@ function drawGhost() {
   // hood
   ctx.fillStyle = `rgba(205,228,255,${0.26 * a})`;
   ctx.beginPath(); ctx.ellipse(x, topY + hPx * 0.14, 0.27 * hPx, 0.3 * hPx, 0, 0, TAU); ctx.fill();
-  // scarf wisp trailing behind
-  ctx.strokeStyle = `rgba(170,205,255,${0.3 * a})`;
-  ctx.lineWidth = Math.max(1.2, 0.06 * hPx);
-  ctx.beginPath();
-  ctx.moveTo(x, topY + 0.22 * hPx);
-  for (let i = 1; i <= 8; i++) {
-    const tt = time * 5 - i * 0.55;
-    ctx.lineTo(x + Math.sin(tt) * i * 1.2 + 0.3 * hPx, topY + 0.22 * hPx + i * 0.09 * hPx);
-  }
-  ctx.stroke();
   // dissolving motes rising off the shoulders
   for (let j = 0; j < 3; j++) {
     const q = (time * 0.35 + j * 0.37) % 1;
@@ -2604,17 +2804,28 @@ function drawFinaleVoice() {
   if (!finale || finale.ended || finale.st === 'wait') return;
   const pr = project(finale.pos.x, finale.pos.y, finale.pos.z);
   const gp = project(finale.hov.x, groundH(finale.hov.x, finale.hov.z) + 0.06, finale.hov.z);
-  // the arrival ring: the conductor's downbeat, drawn in sand
-  if (gp && finale.st === 'in') {
-    const k = clamp(1 - (finale.arrT - time) / finale.dur, 0, 1);
-    const a = 0.12 + 0.3 * k + 0.18 * Math.max(0, 1 - Math.abs(time - finale.arrT) / 0.6);
+  // the arrival ring: a circle that contracts onto the voice's landing spot —
+  // press when the ring and the voice meet
+  if (gp && (finale.st === 'in' || finale.st === 'circle')) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = `rgba(255,222,160,${Math.min(a, 0.55)})`;
-    ctx.lineWidth = Math.max(1, 0.18 * gp.s);
+    // the landing spot itself, always faintly present
+    ctx.strokeStyle = 'rgba(255,222,160,0.3)';
+    ctx.lineWidth = Math.max(1, 0.1 * gp.s);
     ctx.beginPath();
-    ctx.ellipse(gp.x, gp.y, 3.2 * gp.s, 3.2 * gp.s * 0.26, 0, 0, TAU);
+    ctx.ellipse(gp.x, gp.y, 1.5 * gp.s, 1.5 * gp.s * 0.26, 0, 0, TAU);
     ctx.stroke();
+    if (finale.st === 'in') {
+      const k = clamp(1 - (finale.arrT - time) / finale.dur, 0, 1);
+      const hit = Math.abs(time - finale.arrT) <= 0.6;
+      const rr = 6.5 - 5.0 * k;              // contracts onto the spot as the beat nears
+      const a = 0.22 + 0.4 * k + (hit ? 0.4 : 0);
+      ctx.strokeStyle = `rgba(255,222,160,${Math.min(a, 0.9)})`;
+      ctx.lineWidth = Math.max(1.2, 0.22 * gp.s);
+      ctx.beginPath();
+      ctx.ellipse(gp.x, gp.y, rr * gp.s, rr * gp.s * 0.26, 0, 0, TAU);
+      ctx.stroke();
+    }
     ctx.restore();
   }
   if (!pr) return;
@@ -2632,6 +2843,36 @@ function drawFinaleVoice() {
   ctx.arc(pr.x, pr.y, Math.max(1.4, 0.55 * s * breathe), 0, TAU);
   ctx.fill();
   ctx.restore();
+  // the voice names itself — you always know whom you are catching
+  const vi = finale.order[finale.idx];
+  if (vi !== undefined) {
+    const fs = clamp(Math.min(W, H) * 0.017, 11, 16);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = `italic ${fs}px Georgia, "Palatino Linotype", serif`;
+    ctx.shadowColor = 'rgba(25,12,26,0.9)';
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = `rgba(255,232,195,${0.78 + 0.14 * Math.sin(time * 2.4)})`;
+    ctx.fillText(`${GLYPHS[vi]}  ${INSTR(vi)}`, pr.x, pr.y - 2.4 * s - fs);
+    ctx.restore();
+  }
+}
+
+// the finale gilds the canyon — a warm wash swells with every voice come home
+function drawFinaleGrade() {
+  if (!finale) return;
+  const k = finale.ended ? 1 : 0.25 + 0.65 * (finale.rel.length / 10);
+  const ap = project(ALTAR.x, 10, ALTAR.z);
+  if (!ap) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, Math.max(W, H) * (0.5 + 0.5 * k));
+  g.addColorStop(0, `rgba(255,206,132,${0.2 * k})`);
+  g.addColorStop(0.5, `rgba(255,180,110,${0.07 * k})`);
+  g.addColorStop(1, 'rgba(255,180,110,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 }
 
 // ---------------- minigame UI — fixed screen-space overlay ----------------
@@ -2644,19 +2885,29 @@ function mgInstruction() {
 // explicit guide to the first voice — a gold marker over the instrument while
 // the tutorial leads you there, an edge arrow when it leaves the frame
 function drawTutGuide() {
-  if (!started || mg || tut.done || victoryT0 >= 0) return;
-  if (tut.step !== 2 && tut.step !== 3) return;
-  const tp = tut.target;
-  if (!tp || tp.found) return;
-  const d = Math.hypot(tp.x - p.x, tp.z - p.z);
-  const kIn = clamp((time - tut.t0) / 0.9, 0, 1);
+  if (!started || mg || victoryT0 >= 0) return;
+  // once the tenth voice is home, the guide becomes the altar's call back
+  let tp, tpY, label, t0;
+  if (finaleReady && !finale) {
+    tp = { x: ALTAR.x, z: ALTAR.z };
+    tpY = 12.5; t0 = time - 1;               // floats above the crystal
+    const d = Math.round(Math.hypot(ALTAR.x - p.x, ALTAR.z - p.z));
+    label = L(`the altar \u00b7 ${d} paces`, `祭坛 \u00b7 ${d} 步`);
+  } else {
+    if (tut.done || (tut.step !== 2 && tut.step !== 3)) return;
+    tp = tut.target;
+    if (!tp || tp.found) return;
+    tpY = 1.7; t0 = tut.t0;
+    const d = Math.hypot(tp.x - p.x, tp.z - p.z);
+    label = L(`${INSTRUMENTS[tp.i].name.toLowerCase()} \u00b7 ${Math.round(d)} paces`, `${INSTRUMENTS[tp.i].zh} \u00b7 ${Math.round(d)} 步`);
+  }
+  const kIn = clamp((time - t0) / 0.9, 0, 1);
   const a = kIn * (0.72 + 0.16 * Math.sin(time * 2.4));
   const fs = clamp(Math.min(W, H) * 0.017, 11, 16);
-  const label = L(`${INSTRUMENTS[tp.i].name.toLowerCase()} \u00b7 ${Math.round(d)} paces`, `${INSTRUMENTS[tp.i].zh} \u00b7 ${Math.round(d)} 步`);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.shadowColor = 'rgba(25,12,26,0.9)';
-  const pr = project(tp.x, groundH(tp.x, tp.z) + 1.7, tp.z);
+  const pr = project(tp.x, groundH(tp.x, tp.z) + tpY, tp.z);
   const onScreen = pr && pr.x > W * 0.07 && pr.x < W * 0.93 && pr.y > H * 0.12 && pr.y < H * 0.88;
   if (onScreen) {
     // pulsing gold diamond floating above the instrument itself
@@ -3041,11 +3292,16 @@ function draw() {
     const pr = project(r.x, groundH(r.x, r.z), r.z);
     if (pr && pr.x > -160 && pr.x < W + 160 && pr.vz < 260) items.push({ z: pr.vz, kind: 'restore', o: r });
   }
+  for (const pr of PROPS) {
+    const pp = project(pr.x, groundH(pr.x, pr.z), pr.z);
+    if (pp && pp.x > -220 && pp.x < W + 220 && pp.vz < 320) items.push({ z: pp.vz, kind: 'prop', o: pr });
+  }
   items.sort((a, b) => b.z - a.z);
   for (const it of items) {
     if (it.kind === 'ridge') drawRidge(it.k);
     else if (it.kind === 'wall') drawWall(it.o);
     else if (it.kind === 'lm') drawLandmark(it.o);
+    else if (it.kind === 'prop') drawProp(it.o);
     else if (it.kind === 'lore') drawLoreStone(it.o);
     else if (it.kind === 'altar') drawAltar();
     else if (it.kind === 'restore') drawRestoration(it.o);
@@ -3063,7 +3319,8 @@ function draw() {
   drawCompass();
   // the finale's approaching voice arrives above the world, below the card
   drawFinaleVoice();
-  // post: vignette + grain
+  // the finale's golden hour, then post: vignette + grain
+  drawFinaleGrade();
   ctx.fillStyle = vigGrad;
   ctx.fillRect(0, 0, W, H);
   if (!grainPat) grainPat = ctx.createPattern(grain, 'repeat');
